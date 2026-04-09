@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import '../../core/routing/app_routes.dart';
 
 class CaseDetailsPage extends StatelessWidget {
   final Map<String, dynamic> data;
@@ -18,7 +20,11 @@ class CaseDetailsPage extends StatelessWidget {
                 IconButton(
                   icon: const Icon(Icons.arrow_back),
                   onPressed: () {
-                    Navigator.pop(context);
+                    if (context.canPop()) {
+                      context.pop();
+                    } else {
+                      context.go(AppRoutes.history);
+                    }
                   },
                 ),
                 const Text(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:fp/core/routing/app_routes.dart';
+import 'package:fp/core/services/patient_service.dart';
 import 'package:fp/pages/history/models/patient_history_model.dart';
 
 class HistoryPage extends StatefulWidget {
@@ -12,17 +13,39 @@ class HistoryPage extends StatefulWidget {
 
 class _HistoryPageState extends State<HistoryPage> {
   String selectedFilter = 'All';
+  late Future<List<PatientHistory>> patientsFuture;
 
-  List<PatientHistory> patients = [
-    PatientHistory(name: 'Nora Ahmed', age: 56, date: '12 May 2025', stenosis: 65),
-    PatientHistory(name: 'Sara Hassan', age: 63, date: '10 May 2025', stenosis: 60),
-    PatientHistory(name: 'Khaled Ahmed', age: 48, date: '8 May 2025', stenosis: 30),
-    PatientHistory(name: 'Ahmed Ali', age: 72, date: '7 May 2025', stenosis: 20),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    patientsFuture = _fetchPatients();
+  }
 
-  List<PatientHistory> get filteredPatients {
-    if (selectedFilter == 'All') return patients;
-    return patients.where((p) => p.status == selectedFilter).toList();
+  Future<List<PatientHistory>> _fetchPatients() async {
+    final rawPatients = await PatientService().getAllPatients();
+    return rawPatients.map((p) {
+      // Find latest analysis result if any
+      int latestStenosis = 0;
+      String latestDate = p['createdAt']?.split('T')[0] ?? '';
+      
+      if (p['studies'] != null && (p['studies'] as List).isNotEmpty) {
+        final studies = p['studies'] as List;
+        for (var study in studies) {
+          if (study['analysisResults'] != null && (study['analysisResults'] as List).isNotEmpty) {
+            final results = study['analysisResults'] as List;
+            latestStenosis = results.first['stenosisPercentage'].toInt();
+            break; 
+          }
+        }
+      }
+
+      return PatientHistory(
+        name: p['fullName'] ?? 'Unknown',
+        age: p['age'] ?? 0,
+        date: latestDate,
+        stenosis: latestStenosis,
+      );
+    }).toList();
   }
 
   @override
@@ -31,29 +54,25 @@ class _HistoryPageState extends State<HistoryPage> {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F4F4),
-
       appBar: AppBar(
         backgroundColor: primaryColor,
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
-          if (context.canPop()) {
-      context.pop();
-    } else {
-      context.go(AppRoutes.home);
-    }
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go(AppRoutes.home);
+            }
           },
         ),
         title: const Text('Patients History'),
       ),
-
       body: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
           children: [
-
-            /// 🔍 Search
             TextField(
               decoration: InputDecoration(
                 hintText: 'Search Patient name or ID',
@@ -65,10 +84,7 @@ class _HistoryPageState extends State<HistoryPage> {
                 ),
               ),
             ),
-
             const SizedBox(height: 10),
-
-            /// 🔹 Filters
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -78,16 +94,32 @@ class _HistoryPageState extends State<HistoryPage> {
                 _filterChip('Critical'),
               ],
             ),
-
             const SizedBox(height: 10),
-
-            /// 🔹 List
             Expanded(
-              child: ListView.builder(
-                itemCount: filteredPatients.length,
-                itemBuilder: (context, index) {
-                  final patient = filteredPatients[index];
-                  return _patientCard(patient);
+              child: FutureBuilder<List<PatientHistory>>(
+                future: patientsFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (snapshot.hasError) {
+                    return Center(child: Text('Error: ${snapshot.error}'));
+                  }
+                  if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                    return const Center(child: Text('No patients found'));
+                  }
+
+                  final filtered = selectedFilter == 'All'
+                      ? snapshot.data!
+                      : snapshot.data!.where((p) => p.status == selectedFilter).toList();
+
+                  return ListView.builder(
+                    itemCount: filtered.length,
+                    itemBuilder: (context, index) {
+                      final patient = filtered[index];
+                      return _patientCard(patient);
+                    },
+                  );
                 },
               ),
             ),
@@ -97,7 +129,6 @@ class _HistoryPageState extends State<HistoryPage> {
     );
   }
 
-  /// ================= FILTER =================
   Widget _filterChip(String label) {
     final isSelected = selectedFilter == label;
 
@@ -117,7 +148,7 @@ class _HistoryPageState extends State<HistoryPage> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected ? getColor().withOpacity(0.2) : Colors.white,
+          color: isSelected ? getColor().withValues(alpha: 0.2) : Colors.white,
           borderRadius: BorderRadius.circular(20),
         ),
         child: Row(
@@ -131,7 +162,6 @@ class _HistoryPageState extends State<HistoryPage> {
     );
   }
 
-  /// ================= CARD =================
   Widget _patientCard(PatientHistory patient) {
     Color statusColor;
     if (patient.status == 'Normal') {
@@ -149,17 +179,16 @@ class _HistoryPageState extends State<HistoryPage> {
           extra: {
             "name": patient.name,
             "age": patient.age,
-            "gender": "Female",
+            "gender": "Unknown",
             "id": "#${patient.name.hashCode}",
             "image1": "https://via.placeholder.com/150",
             "image2": "https://via.placeholder.com/150",
             "stenosis": patient.stenosis,
             "artery": "LAD",
-            "notes": "Significant stenosis detected. Further evaluation recommended.",
+            "notes": "Diagnosis from backend.",
           },
         );
       },
-
       child: Container(
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(12),
@@ -177,9 +206,7 @@ class _HistoryPageState extends State<HistoryPage> {
               backgroundColor: Colors.grey,
               child: Icon(Icons.person, color: Colors.white),
             ),
-
             const SizedBox(width: 10),
-
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -189,7 +216,7 @@ class _HistoryPageState extends State<HistoryPage> {
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   Text('Age: ${patient.age}'),
-                  Text('Diagnosis: ${patient.date}'),
+                  Text('Date: ${patient.date}'),
                   Text(
                     'Stenosis: ${patient.stenosis}%',
                     style: TextStyle(color: statusColor),
@@ -197,7 +224,6 @@ class _HistoryPageState extends State<HistoryPage> {
                 ],
               ),
             ),
-
             Column(
               children: [
                 const Icon(Icons.favorite_border),
@@ -205,7 +231,7 @@ class _HistoryPageState extends State<HistoryPage> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.2),
+                    color: statusColor.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(

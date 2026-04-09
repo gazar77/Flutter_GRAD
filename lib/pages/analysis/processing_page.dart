@@ -1,13 +1,15 @@
-import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:fp/core/networking/api_constants.dart';
+import 'package:fp/core/networking/dio_factory.dart';
 import 'package:fp/core/routing/app_routes.dart';
 
 class ProcessingPage extends StatefulWidget {
   final File file;
+  final int studyId;
 
-  const ProcessingPage({super.key, required this.file});
+  const ProcessingPage({super.key, required this.file, required this.studyId});
 
   @override
   State<ProcessingPage> createState() => _ProcessingPageState();
@@ -15,41 +17,64 @@ class ProcessingPage extends StatefulWidget {
 
 class _ProcessingPageState extends State<ProcessingPage> {
   double progress = 0.0;
-  Timer? timer;
+  bool isError = false;
+  String errorMessage = '';
 
   @override
   void initState() {
     super.initState();
-    _startFakeProgress();
+    _analyzeStudy();
   }
 
-  void _startFakeProgress() {
-    timer = Timer.periodic(const Duration(milliseconds: 80), (t) {
-      if (!mounted) return;
-
-      setState(() {
-        progress += 0.01;
+  Future<void> _analyzeStudy() async {
+    try {
+      final dio = DioFactory.getDio();
+      
+      // We'll show fake progress while waiting for the API
+      final timer = Stream.periodic(const Duration(milliseconds: 100), (i) => i);
+      final subscription = timer.listen((i) {
+        if (mounted && progress < 0.9) {
+          setState(() {
+            progress += 0.01;
+          });
+        }
       });
 
-      if (progress >= 1.0) {
-        timer?.cancel();
+      final response = await dio.post('${ApiConstants.analysis}/${widget.studyId}');
 
-        Future.delayed(const Duration(milliseconds: 300), () {
-          if (!mounted) return;
+      subscription.cancel();
 
-          context.go(
-            AppRoutes.result,
-            extra: widget.file,
-          );
+      if (response.statusCode == 200) {
+        setState(() {
+          progress = 1.0;
+        });
+
+        if (mounted) {
+          Future.delayed(const Duration(milliseconds: 500), () {
+            if (mounted) {
+              context.go(
+                AppRoutes.result,
+                extra: {
+                  'file': widget.file,
+                  'studyId': widget.studyId,
+                  'result': response.data,
+                },
+              );
+            }
+          });
+        }
+      } else {
+        throw Exception('Analysis failed: ${response.statusMessage}');
+      }
+    } catch (e) {
+      debugPrint('Analysis error: $e');
+      if (mounted) {
+        setState(() {
+          isError = true;
+          errorMessage = e.toString();
         });
       }
-    });
-  }
-
-  @override
-  void dispose() {
-    timer?.cancel();
-    super.dispose();
+    }
   }
 
   @override
@@ -62,7 +87,6 @@ class _ProcessingPageState extends State<ProcessingPage> {
         child: Column(
           children: [
             const SizedBox(height: 30),
-
             const Text(
               'Processing Analysis',
               style: TextStyle(
@@ -71,9 +95,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
                 color: primaryColor,
               ),
             ),
-
             const SizedBox(height: 60),
-
             Center(
               child: Stack(
                 alignment: Alignment.center,
@@ -85,7 +107,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: primaryColor.withOpacity(0.25),
+                          color: primaryColor.withValues(alpha: 0.25),
                           blurRadius: 25,
                           spreadRadius: 6,
                         ),
@@ -96,48 +118,64 @@ class _ProcessingPageState extends State<ProcessingPage> {
                     width: 180,
                     height: 180,
                     child: CircularProgressIndicator(
-                      value: progress,
+                      value: isError ? 1.0 : progress,
                       strokeWidth: 12,
                       backgroundColor: Colors.grey.shade300,
-                      valueColor: const AlwaysStoppedAnimation(primaryColor),
+                      valueColor: AlwaysStoppedAnimation(isError ? Colors.red : primaryColor),
                     ),
                   ),
                   Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(Icons.monitor_heart, color: primaryColor),
+                      Icon(isError ? Icons.error : Icons.monitor_heart, 
+                           color: isError ? Colors.red : primaryColor),
                       const SizedBox(height: 8),
                       Text(
-                        '${(progress * 100).toInt()}%',
-                        style: const TextStyle(
+                        isError ? 'ERROR' : '${(progress * 100).toInt()}%',
+                        style: TextStyle(
                           fontSize: 26,
                           fontWeight: FontWeight.bold,
-                          color: primaryColor,
+                          color: isError ? Colors.red : primaryColor,
                         ),
                       ),
-                      const Text(
-                        'ANALYZING',
-                        style: TextStyle(fontSize: 12),
+                      Text(
+                        isError ? 'FAILED' : 'ANALYZING',
+                        style: const TextStyle(fontSize: 12),
                       ),
                     ],
                   ),
                 ],
               ),
             ),
-
             const SizedBox(height: 60),
-
-            const Text(
-              'Analyzing angiography video',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
+            if (isError)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Text(
+                  errorMessage,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.red),
+                ),
+              )
+            else ...[
+              const Text(
+                'Analyzing angiography video',
+                style: TextStyle(fontWeight: FontWeight.bold),
               ),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'This may take a few seconds',
-              style: TextStyle(color: Colors.black54),
-            ),
+              const SizedBox(height: 6),
+              const Text(
+                'This may take a few seconds',
+                style: TextStyle(color: Colors.black54),
+              ),
+            ],
+            if (isError)
+              Padding(
+                padding: const EdgeInsets.all(20),
+                child: ElevatedButton(
+                  onPressed: () => context.go(AppRoutes.upload),
+                  child: const Text('Go Back'),
+                ),
+              ),
           ],
         ),
       ),

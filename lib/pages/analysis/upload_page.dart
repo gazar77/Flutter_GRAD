@@ -1,8 +1,12 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:fp/core/networking/api_constants.dart';
+import 'package:fp/core/networking/dio_factory.dart';
 import 'package:fp/core/routing/app_routes.dart';
-import 'package:image_picker/image_picker.dart';
+import 'package:fp/core/services/patient_service.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:go_router/go_router.dart';
+import 'package:dio/dio.dart';
 
 class UploadPage extends StatefulWidget {
   const UploadPage({super.key});
@@ -12,41 +16,120 @@ class UploadPage extends StatefulWidget {
 }
 
 class _UploadPageState extends State<UploadPage> {
-  String? selectedPatient;
+  int? selectedPatientId;
   File? selectedFile;
+  String? selectedFileName;
+  List<Map<String, dynamic>> patients = [];
+  bool isLoadingPatients = true;
 
-  final List<String> patients = [
-    'Nora Ahmed, 59',
-    'Sara Hassan, 45',
-    'Khaled Ahmed, 60',
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadPatients();
+  }
 
-  final ImagePicker picker = ImagePicker();
-
-  Future<void> pickImage() async {
-    final picked = await picker.pickImage(source: ImageSource.gallery);
-
-    if (picked != null) {
+  Future<void> _loadPatients() async {
+    try {
+      final rawPatients = await PatientService().getAllPatients();
       setState(() {
-        selectedFile = File(picked.path);
+        patients = rawPatients.cast<Map<String, dynamic>>();
+        isLoadingPatients = false;
+      });
+    } catch (e) {
+      debugPrint('Error loading patients: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading patients: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _pickVideoFile() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.video,
+      allowMultiple: false,
+    );
+    if (result != null && result.files.single.path != null) {
+      setState(() {
+        selectedFile = File(result.files.single.path!);
+        selectedFileName = result.files.single.name;
       });
     }
   }
 
-  void analyze() {
-    if (selectedFile == null || selectedPatient == null) {
+  Future<void> _pickDicomFile() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.any,
+      allowMultiple: false,
+      allowedExtensions: null,
+    );
+    if (result != null && result.files.single.path != null) {
+      setState(() {
+        selectedFile = File(result.files.single.path!);
+        selectedFileName = result.files.single.name;
+      });
+    }
+  }
+
+  Future<void> _uploadAndAnalyze() async {
+    if (selectedFile == null || selectedPatientId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select patient and file')),
       );
       return;
     }
 
-    /// هنا بعدين هتربط مع FastAPI
-    debugPrint('Analyzing for $selectedPatient');
+    // Show loading immediately
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 18, height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+              ),
+              SizedBox(width: 12),
+              Text('Uploading...'),
+            ],
+          ),
+          duration: Duration(seconds: 30),
+        ),
+      );
+    }
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Analyzing...')));
+    int studyId = 0;
+
+    try {
+      final dio = DioFactory.getDio();
+      final formData = FormData.fromMap({
+        'PatientId': selectedPatientId,
+        'File': await MultipartFile.fromFile(selectedFile!.path),
+      });
+
+      final response = await dio.post(
+        '${ApiConstants.studies}/upload',
+        data: formData,
+      );
+
+      if (response.statusCode == 200) {
+        studyId = response.data['id'];
+      } else {
+        throw Exception('Upload failed: ${response.statusMessage}');
+      }
+    } catch (e) {
+      debugPrint('Upload error: $e');
+      // Still navigate to processing to show the error state there
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      context.go(AppRoutes.processing, extra: {
+        'file': selectedFile,
+        'studyId': studyId,
+      });
+    }
   }
 
   @override
@@ -78,10 +161,8 @@ class _UploadPageState extends State<UploadPage> {
               'Upload Patients Scan to start analysis',
               style: TextStyle(fontSize: 13),
             ),
-
             const SizedBox(height: 12),
             const Divider(),
-
             const SizedBox(height: 12),
 
             /// 🔹 Select Patient
@@ -91,29 +172,34 @@ class _UploadPageState extends State<UploadPage> {
             ),
             const SizedBox(height: 8),
 
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: Colors.black26),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: selectedPatient,
-                  hint: const Text('Select Patient (e.g., Nora Ahmed , 59)'),
-                  isExpanded: true,
-                  items: patients.map((p) {
-                    return DropdownMenuItem(value: p, child: Text(p));
-                  }).toList(),
-                  onChanged: (value) {
-                    setState(() {
-                      selectedPatient = value;
-                    });
-                  },
-                ),
-              ),
-            ),
+            isLoadingPatients
+                ? const Center(child: CircularProgressIndicator())
+                : Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: Colors.black26),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<int>(
+                        value: selectedPatientId,
+                        hint: const Text('Select Patient'),
+                        isExpanded: true,
+                        items: patients.map((p) {
+                          return DropdownMenuItem<int>(
+                            value: p['id'],
+                            child: Text('${p['fullName']}, ${p['age']}'),
+                          );
+                        }).toList(),
+                        onChanged: (value) {
+                          setState(() {
+                            selectedPatientId = value;
+                          });
+                        },
+                      ),
+                    ),
+                  ),
 
             const SizedBox(height: 20),
 
@@ -123,11 +209,13 @@ class _UploadPageState extends State<UploadPage> {
               children: [
                 _UploadBox(
                   title: 'Tap to upload\nangiography video\n(MP4)',
-                  onTap: pickImage,
+                  icon: Icons.video_file,
+                  onTap: _pickVideoFile,
                 ),
                 _UploadBox(
-                  title: 'Tap to upload\nangiography video\n(DICOM)',
-                  onTap: pickImage,
+                  title: 'Tap to upload\nangiography scan\n(DICOM)',
+                  icon: Icons.file_present,
+                  onTap: _pickDicomFile,
                 ),
               ],
             ),
@@ -138,17 +226,62 @@ class _UploadPageState extends State<UploadPage> {
             if (selectedFile != null)
               Container(
                 width: double.infinity,
-                height: 180,
+                padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                  boxShadow: const [
-                    BoxShadow(color: Colors.black26, blurRadius: 4),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.06),
+                      blurRadius: 8,
+                    ),
                   ],
+                  border: Border.all(
+                    color: const Color(0xFF2B4F7A).withValues(alpha: 0.4),
+                  ),
                 ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: Image.file(selectedFile!, fit: BoxFit.cover),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 50,
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF2B4F7A).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(
+                        Icons.play_circle_fill,
+                        color: Color(0xFF2B4F7A),
+                        size: 32,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            selectedFileName ?? selectedFile!.path.split('/').last,
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF1E1E1E),
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${(selectedFile!.lengthSync() / (1024 * 1024)).toStringAsFixed(2)} MB',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.check_circle, color: Colors.green, size: 22),
+                  ],
                 ),
               ),
 
@@ -159,9 +292,7 @@ class _UploadPageState extends State<UploadPage> {
               width: double.infinity,
               height: 50,
               child: ElevatedButton(
-                onPressed: () {
-                  context.go(AppRoutes.processing, extra: selectedFile);
-                },
+                onPressed: _uploadAndAnalyze,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: primaryColor,
                   shape: RoundedRectangleBorder(
@@ -181,12 +312,16 @@ class _UploadPageState extends State<UploadPage> {
   }
 }
 
-/// 🔹 Upload Box Widget
 class _UploadBox extends StatelessWidget {
   final String title;
+  final IconData icon;
   final VoidCallback onTap;
 
-  const _UploadBox({required this.title, required this.onTap});
+  const _UploadBox({
+    required this.title,
+    this.icon = Icons.cloud_upload,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -199,14 +334,14 @@ class _UploadBox extends StatelessWidget {
           color: const Color(0xFFEAF2FB),
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: Color(0xFF2B4F7A),
+            color: const Color(0xFF2B4F7A),
             style: BorderStyle.solid,
           ),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.cloud_upload, size: 30),
+            Icon(icon, size: 30, color: const Color(0xFF2B4F7A)),
             const SizedBox(height: 8),
             Text(
               title,

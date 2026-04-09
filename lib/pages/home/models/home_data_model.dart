@@ -15,11 +15,11 @@ class HomeDataModel {
 
   factory HomeDataModel.fromJson(Map<String, dynamic> json) {
     return HomeDataModel(
-      doctorName: json['doctorName'] ?? '',
-      doctorImage: json['doctorImage'],
-      totalPatients: json['totalPatients'] ?? 0,
-      totalReports: json['totalReports'] ?? 0,
-      recentAnalyses: (json['recentAnalyses'] as List<dynamic>? ?? [])
+      doctorName: json['doctorName'] ?? json['DoctorName'] ?? '',
+      doctorImage: json['doctorImage'] ?? json['DoctorImage'],
+      totalPatients: (json['totalPatients'] ?? json['TotalPatients'] ?? 0) as int,
+      totalReports: (json['totalReports'] ?? json['TotalReports'] ?? 0) as int,
+      recentAnalyses: (json['recentAnalyses'] ?? json['RecentAnalyses'] as List<dynamic>? ?? [])
           .map((e) => AnalysisItemModel.fromJson(e))
           .toList(),
     );
@@ -39,9 +39,9 @@ class AnalysisItemModel {
 
   factory AnalysisItemModel.fromJson(Map<String, dynamic> json) {
     return AnalysisItemModel(
-      patientName: json['patientName'] ?? '',
-      stenosisPercent: json['stenosisPercent'] ?? 0,
-      date: json['date'] ?? '',
+      patientName: json['patientName'] ?? json['PatientName'] ?? '',
+      stenosisPercent: json['stenosisPercent'] ?? json['StenosisPercent'] ?? 0,
+      date: json['date'] ?? json['Date'] ?? '',
     );
   }
 }

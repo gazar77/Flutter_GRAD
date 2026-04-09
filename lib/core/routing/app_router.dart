@@ -12,7 +12,13 @@ import 'package:fp/pages/analysis/processing_page.dart';
 import 'package:fp/pages/analysis/result_page.dart';
 import 'package:fp/pages/history/history_page.dart';
 import 'package:fp/pages/history/case_details.dart';
+import 'package:fp/pages/patient/patients_page.dart';
+import 'package:fp/pages/patient/patient_profile_page.dart';
+import 'package:fp/pages/profile/edit_profile_page.dart';
+import 'package:fp/pages/profile/change_password_page.dart';
+import 'package:fp/pages/profile/update_email_page.dart';
 import 'package:fp/pages/profile/profile_page.dart' as profile_page;
+import 'package:fp/pages/profile/settings_page.dart';
 import 'package:fp/pages/auth/login_page.dart';
 import '../../pages/splash/splash_page.dart';
 import 'app_routes.dart';
@@ -69,16 +75,22 @@ class AppRouter {
       GoRoute(
         path: AppRoutes.processing,
         builder: (context, state) {
-          final file = state.extra as File;
-          return ProcessingPage(file: file);
+          final data = state.extra as Map<String, dynamic>;
+          return ProcessingPage(
+            file: data['file'] as File,
+            studyId: data['studyId'] as int,
+          );
         },
       ),
 
       GoRoute(
         path: AppRoutes.result,
         builder: (context, state) {
-          final file = state.extra as File;
-          return ResultPage(file: file);
+          final data = state.extra as Map<String, dynamic>;
+          return ResultPage(
+            file: data['file'] as File,
+            result: data['result'] as Map<String, dynamic>,
+          );
         },
       ),
 
@@ -98,6 +110,45 @@ class AppRouter {
       GoRoute(
         path: AppRoutes.profile,
         builder: (context, state) => const profile_page.ProfilePage(),
+      ),
+
+      GoRoute(
+        path: AppRoutes.patients,
+        builder: (context, state) => const PatientsPage(),
+      ),
+
+      GoRoute(
+        path: AppRoutes.patientProfile,
+        builder: (context, state) {
+          final patient = state.extra as Map<String, dynamic>;
+          return PatientProfilePage(patient: patient);
+        },
+      ),
+
+      GoRoute(
+        path: AppRoutes.editProfile,
+        builder: (context, state) => const EditProfilePage(),
+      ),
+
+      GoRoute(
+        path: AppRoutes.changePassword,
+        builder: (context, state) => const ChangePasswordPage(),
+      ),
+
+      GoRoute(
+        path: AppRoutes.updateEmail,
+        builder: (context, state) => const UpdateEmailPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.settings,
+        builder: (context, state) => const SettingsPage(),
+      ),
+      GoRoute(
+        path: AppRoutes.editPatient,
+        builder: (context, state) {
+          final patient = state.extra as Map<String, dynamic>?;
+          return AddPatientPage(patient: patient);
+        },
       ),
     ],
   );

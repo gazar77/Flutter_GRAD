@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/constants/app_assets.dart';
 import '../../core/routing/app_routes.dart';
 import '../../core/theme/app_colors.dart';
 
@@ -55,7 +54,7 @@ class _SplashPageState extends State<SplashPage> {
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(24),
                     child: Image.asset(
-                      AppAssets.angioLensLogo,
+                      'assets/images/angiolens_logo.png',
                       fit: BoxFit.contain,
                     ),
                   ),

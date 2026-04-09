@@ -100,7 +100,13 @@ class _VerifyCodePageState extends State<VerifyCodePage> {
                     Row(
                       children: [
                         IconButton(
-                          onPressed: () => context.pop(),
+                          onPressed: () {
+                            if (context.canPop()) {
+                              context.pop();
+                            } else {
+                              context.go(AppRoutes.login);
+                            }
+                          },
                           icon: const Icon(Icons.arrow_back),
                         ),
                       ],

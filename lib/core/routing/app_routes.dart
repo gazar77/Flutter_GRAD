@@ -13,4 +13,11 @@ class AppRoutes {
   static const String history = '/history';
   static const String caseDetails = '/case-details';
   static const String profile = '/profile';
+  static const String patients = '/patients';
+  static const String patientProfile = '/patient-profile';
+  static const String editProfile = '/edit-profile';
+  static const String changePassword = '/change-password';
+  static const String updateEmail = '/update-email';
+  static const String settings = '/settings';
+  static const String editPatient = '/edit-patient';
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/routing/app_routes.dart';
 
 class CreateNewPasswordPage extends StatefulWidget {
   const CreateNewPasswordPage({super.key});
@@ -63,7 +64,11 @@ class _CreateNewPasswordPageState extends State<CreateNewPasswordPage> {
                   children: [
                     IconButton(
                       onPressed: () {
-                        context.pop();
+                        if (context.canPop()) {
+                          context.pop();
+                        } else {
+                          context.go(AppRoutes.login);
+                        }
                       },
                       icon: const Icon(Icons.arrow_back),
                     ),

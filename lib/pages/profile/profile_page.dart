@@ -1,9 +1,67 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:fp/core/routing/app_routes.dart';
+import 'package:provider/provider.dart';
+import 'package:file_picker/file_picker.dart';
+import '../../core/routing/app_routes.dart';
+import '../../core/app_state.dart';
+import '../../core/networking/api_constants.dart';
+import '../../core/networking/dio_factory.dart';
 
-class ProfilePage extends StatelessWidget {
+class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
+
+  @override
+  State<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<ProfilePage> {
+  // Stats
+  int totalPatients = 0;
+  int totalReports = 0;
+  bool isLoadingStats = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadDashboard();
+  }
+
+  Future<void> _loadDashboard() async {
+    try {
+      final dio = DioFactory.getDio();
+      final response = await dio.get(ApiConstants.dashboard);
+      if (response.statusCode == 200 && mounted) {
+        final data = response.data;
+        // Update AppState with fresh server data
+        context.read<AppState>().updateDoctorProfile(
+          name: data['doctorName'],
+          specialty: data['title'],
+          hospital: data['hospital'],
+          phone: data['mobile'],
+          extension: data['extension'],
+        );
+        setState(() {
+          totalPatients = data['totalPatients'] ?? 0;
+          totalReports = data['totalReports'] ?? 0;
+          isLoadingStats = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Dashboard load error: $e');
+      if (mounted) setState(() => isLoadingStats = false);
+    }
+  }
+
+  Future<void> _pickProfileImage() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.image,
+      allowMultiple: false,
+    );
+    if (result != null && result.files.single.path != null && mounted) {
+      context.read<AppState>().setProfileImage(File(result.files.single.path!));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,7 +88,13 @@ class ProfilePage extends StatelessWidget {
             child: Row(
               children: [
                 GestureDetector(
-                  onTap: () => context.pop(),
+                  onTap: () {
+                    if (context.canPop()) {
+                      context.pop();
+                    } else {
+                      context.go(AppRoutes.home);
+                    }
+                  },
                   child: const Icon(
                     Icons.arrow_back_ios_new,
                     color: Colors.white,
@@ -59,123 +123,48 @@ class ProfilePage extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(14, 18, 14, 16),
               child: Column(
                 children: [
-                  /// PROFILE IMAGE
-                  Stack(
-                    alignment: Alignment.bottomRight,
-                    children: [
-                      Container(
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: primaryColor.withOpacity(0.6),
-                            width: 4,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: primaryColor.withOpacity(0.12),
-                              blurRadius: 18,
-                              offset: const Offset(0, 6),
-                            ),
-                          ],
-                        ),
-                        child: const CircleAvatar(
-                          radius: 52,
-                          backgroundColor: Colors.white,
-                          backgroundImage: NetworkImage(
-                            'https://i.pravatar.cc/300?img=12',
-                          ),
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.all(7),
-                        decoration: BoxDecoration(
-                          color: primaryColor,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2),
-                        ),
-                        child: const Icon(
-                          Icons.edit,
-                          size: 16,
-                          color: Colors.white,
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  /// MAIN INFO CARD
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-                    decoration: _cardDecoration(cardColor),
-                    child: Column(
-                      children: const [
-                        Text(
-                          'DR. Ahmed Mansour',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w800,
-                            color: Color(0xFF1E1E1E),
-                          ),
-                        ),
-                        SizedBox(height: 8),
-                        Text(
-                          'Cardiologist',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF5C91D1),
-                          ),
-                        ),
-                        SizedBox(height: 6),
-                        Text(
-                          'Dar Al Fouad Hospital',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Color(0xFF5F5F5F),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  /// CONTACT INFO
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                    decoration: _cardDecoration(cardColor),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  /// PROFILE IMAGE with tap to change
+                  GestureDetector(
+                    onTap: _pickProfileImage,
+                    child: Stack(
+                      alignment: Alignment.bottomRight,
                       children: [
-                        const Text(
-                          'Contact Info',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: Color(0xFF222222),
+                        Container(
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: primaryColor.withValues(alpha: 0.6),
+                              width: 4,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: primaryColor.withValues(alpha: 0.12),
+                                blurRadius: 18,
+                                offset: const Offset(0, 6),
+                              ),
+                            ],
+                          ),
+                          child: CircleAvatar(
+                            radius: 52,
+                            backgroundColor: Colors.white,
+                            backgroundImage: context.watch<AppState>().profileImageFile != null
+                                ? FileImage(context.watch<AppState>().profileImageFile!)
+                                : const NetworkImage('https://i.pravatar.cc/300?img=12')
+                                    as ImageProvider,
                           ),
                         ),
-                        const SizedBox(height: 12),
-                        _infoRow(
-                          icon: Icons.email_outlined,
-                          title: 'Email',
-                          value: 'ahmed.mansour11@gmail.com',
-                          valueColor: const Color(0xFF5C91D1),
-                        ),
-                        const SizedBox(height: 10),
-                        _infoRow(
-                          icon: Icons.phone_outlined,
-                          title: 'Phone',
-                          value: '+20 10 1234 5678',
-                        ),
-                        const SizedBox(height: 10),
-                        _infoRow(
-                          icon: Icons.local_hospital_outlined,
-                          title: 'Extension',
-                          value: '+20 10 2534 2435',
+                        Container(
+                          padding: const EdgeInsets.all(7),
+                          decoration: BoxDecoration(
+                            color: primaryColor,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
+                          ),
+                          child: const Icon(
+                            Icons.edit,
+                            size: 16,
+                            color: Colors.white,
+                          ),
                         ),
                       ],
                     ),
@@ -183,7 +172,90 @@ class ProfilePage extends StatelessWidget {
 
                   const SizedBox(height: 16),
 
-                  /// STATISTICS
+                  /// MAIN INFO CARD - reads from AppState
+                  Consumer<AppState>(
+                    builder: (context, appState, _) => Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                      decoration: _cardDecoration(cardColor),
+                      child: Column(
+                        children: [
+                          Text(
+                            appState.doctorName,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF1E1E1E),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            appState.doctorSpecialty,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF5C91D1),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            appState.doctorHospital,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              color: Color(0xFF5F5F5F),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  /// CONTACT INFO - reads from AppState
+                  Consumer<AppState>(
+                    builder: (context, appState, _) => Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                      decoration: _cardDecoration(cardColor),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Contact Info',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: Color(0xFF222222),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          _infoRow(
+                            icon: Icons.email_outlined,
+                            title: 'Email',
+                            value: appState.doctorEmail,
+                            valueColor: const Color(0xFF5C91D1),
+                          ),
+                          const SizedBox(height: 10),
+                          _infoRow(
+                            icon: Icons.phone_outlined,
+                            title: 'Phone',
+                            value: appState.doctorPhone,
+                          ),
+                          const SizedBox(height: 10),
+                          _infoRow(
+                            icon: Icons.local_hospital_outlined,
+                            title: 'Extension',
+                            value: appState.doctorExtension,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  /// STATISTICS - dynamic from API
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
@@ -200,29 +272,31 @@ class ProfilePage extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(height: 14),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _statCard(
-                                bgColor: lightBlue,
-                                icon: Icons.groups_2_outlined,
-                                title: 'Total Patients',
-                                value: '1,029',
-                                primaryColor: primaryColor,
+                        isLoadingStats
+                            ? const Center(child: CircularProgressIndicator())
+                            : Row(
+                                children: [
+                                  Expanded(
+                                    child: _statCard(
+                                      bgColor: lightBlue,
+                                      icon: Icons.groups_2_outlined,
+                                      title: 'Total Patients',
+                                      value: totalPatients.toString(),
+                                      primaryColor: primaryColor,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: _statCard(
+                                      bgColor: lightBlue,
+                                      icon: Icons.analytics_outlined,
+                                      title: 'Analyses Performed',
+                                      value: totalReports.toString(),
+                                      primaryColor: primaryColor,
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _statCard(
-                                bgColor: lightBlue,
-                                icon: Icons.analytics_outlined,
-                                title: 'Analyses Performed',
-                                value: '900',
-                                primaryColor: primaryColor,
-                              ),
-                            ),
-                          ],
-                        ),
                       ],
                     ),
                   ),
@@ -237,7 +311,7 @@ class ProfilePage extends StatelessWidget {
                           height: 46,
                           child: ElevatedButton(
                             onPressed: () {
-                              // context.push(AppRoutes.editProfile);
+                              context.push(AppRoutes.editProfile);
                             },
                             style: ElevatedButton.styleFrom(
                               elevation: 0,
@@ -263,7 +337,7 @@ class ProfilePage extends StatelessWidget {
                           height: 46,
                           child: ElevatedButton.icon(
                             onPressed: () {
-                              // context.push(AppRoutes.settings);
+                              context.push(AppRoutes.changePassword);
                             },
                             style: ElevatedButton.styleFrom(
                               elevation: 0,
@@ -324,9 +398,7 @@ class ProfilePage extends StatelessWidget {
             if (index == 0) context.go(AppRoutes.home);
             if (index == 1) context.go(AppRoutes.history);
             if (index == 2) context.go(AppRoutes.profile);
-            if (index == 3) {
-              // context.go(AppRoutes.settings);
-            }
+            if (index == 3) context.go(AppRoutes.settings);
           },
           items: const [
             BottomNavigationBarItem(
@@ -424,7 +496,7 @@ class ProfilePage extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.9),
+              color: Colors.white.withValues(alpha: 0.9),
               shape: BoxShape.circle,
             ),
             child: Icon(

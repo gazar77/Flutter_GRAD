@@ -66,7 +66,11 @@ class _ForgetPasswordPageState extends State<ForgetPasswordPage> {
                   children: [
                     IconButton(
                       onPressed: () {
-                        context.pop();
+                        if (context.canPop()) {
+                          context.pop();
+                        } else {
+                          context.go(AppRoutes.login);
+                        }
                       },
                       icon: const Icon(
                         Icons.arrow_back,

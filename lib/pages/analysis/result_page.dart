@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:fp/core/routing/app_routes.dart';
+import 'package:fp/core/networking/api_constants.dart';
 
 class _MainButton extends StatelessWidget {
   final String text;
@@ -40,18 +42,72 @@ class _MainButton extends StatelessWidget {
   }
 }
 
-class ResultPage extends StatelessWidget {
-  final File file; // 🔥 نخزن الصورة هنا
+/// Fallback widget shown when no analyzed image is available from backend
+class _VideoFallback extends StatelessWidget {
+  final File file;
+  const _VideoFallback({required this.file});
 
-  const ResultPage({super.key, required this.file});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: const Color(0xFF2B4F7A).withValues(alpha: 0.06),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.play_circle_fill, size: 52, color: Color(0xFF2B4F7A)),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+              file.path.split('/').last,
+              textAlign: TextAlign.center,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                color: Color(0xFF2B4F7A),
+              ),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${(file.lengthSync() / (1024 * 1024)).toStringAsFixed(2)} MB',
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class ResultPage extends StatelessWidget {
+  final File file;
+  final Map<String, dynamic> result;
+
+  const ResultPage({super.key, required this.file, required this.result});
 
   @override
   Widget build(BuildContext context) {
     const primaryColor = Color(0xFF2B4F7A);
 
-    final stenosis = 45;
-    final artery = 'Left Anterior Descending (LAD)';
-    final severity = 'Mild-Moderate';
+    // Map backend response
+    final stenosis = (result['stenosisPercentage'] ?? 0.0).toDouble();
+    final artery = result['arteryName'] ?? 'Unknown Artery';
+    final riskLevel = result['riskLevel'] ?? 'Normal';
+    // Build full image URL from imagePath returned by backend
+    final imagePath = result['imagePath'] as String?;
+    final imageUrl = (imagePath != null && imagePath.isNotEmpty)
+        ? '${ApiConstants.baseUrl.replaceFirst('/api/', '/')}$imagePath'
+        : null;
+
+    Color riskColor;
+    if (riskLevel.toUpperCase().contains('CRITICAL') || riskLevel.toUpperCase().contains('HIGH')) {
+      riskColor = Colors.red;
+    } else if (riskLevel.toUpperCase().contains('MODERATE') || riskLevel.toUpperCase().contains('MEDIUM')) {
+      riskColor = Colors.orange;
+    } else {
+      riskColor = Colors.green;
+    }
 
     return Scaffold(
       backgroundColor: const Color(0xFFF4F4F4),
@@ -73,10 +129,10 @@ class ResultPage extends StatelessWidget {
               const Divider(),
               const SizedBox(height: 10),
 
-              /// 🔥 الصورة اللي المستخدم رفعها
+              /// Analyzed image from backend
               Container(
                 width: double.infinity,
-                height: 220,
+                height: 200,
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(10),
@@ -84,39 +140,28 @@ class ResultPage extends StatelessWidget {
                     BoxShadow(color: Colors.black26, blurRadius: 5),
                   ],
                 ),
-                child: Stack(
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: Image.file( // 🔥 بدل asset
-                        file,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-
-                    /// Detection Box (مؤقت)
-                    Positioned(
-                      right: 40,
-                      top: 60,
-                      child: Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          border: Border.all(
-                            color: Colors.orange,
-                            width: 3,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: imageUrl != null
+                      ? Image.network(
+                          imageUrl,
+                          fit: BoxFit.cover,
+                          loadingBuilder: (context, child, progress) {
+                            if (progress == null) return child;
+                            return const Center(
+                              child: CircularProgressIndicator(),
+                            );
+                          },
+                          errorBuilder: (context, error, stack) =>
+                              _VideoFallback(file: file),
+                        )
+                      : _VideoFallback(file: file),
                 ),
               ),
 
               const SizedBox(height: 16),
 
-              /// باقي الكود زي ما هو 👇
+              /// Diagnosis Details
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(14),
@@ -143,21 +188,20 @@ class ResultPage extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color: Colors.orange.shade100,
+                            color: riskColor.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(6),
                           ),
-                          child: const Text(
-                            'MEDIUM RISK',
+                          child: Text(
+                            riskLevel.toUpperCase(),
                             style: TextStyle(
-                              color: Colors.orange,
+                              color: riskColor,
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
                         ),
                         const SizedBox(width: 6),
-                        const Icon(Icons.warning,
-                            color: Colors.orange, size: 16),
+                        Icon(Icons.warning, color: riskColor, size: 16),
                       ],
                     ),
 
@@ -165,11 +209,11 @@ class ResultPage extends StatelessWidget {
 
                     Text('Detected Artery : $artery'),
                     const SizedBox(height: 6),
-                    Text('Severity Grade : $severity'),
+                    Text('Risk Level : $riskLevel'),
 
                     const SizedBox(height: 12),
 
-                    Text('Stenosis Level : $stenosis%'),
+                    Text('Stenosis Level : ${stenosis.toStringAsFixed(1)}%'),
                     const SizedBox(height: 6),
 
                     Stack(
@@ -182,11 +226,11 @@ class ResultPage extends StatelessWidget {
                           ),
                         ),
                         FractionallySizedBox(
-                          widthFactor: stenosis / 100,
+                          widthFactor: (stenosis / 100).clamp(0.0, 1.0),
                           child: Container(
                             height: 8,
                             decoration: BoxDecoration(
-                              color: Colors.orange,
+                              color: riskColor,
                               borderRadius: BorderRadius.circular(10),
                             ),
                           ),
@@ -205,7 +249,11 @@ class ResultPage extends StatelessWidget {
                     child: _MainButton(
                       text: 'Download Result',
                       color: primaryColor,
-                      onTap: () {},
+                      onTap: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Downloading report...')),
+                        );
+                      },
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -215,7 +263,7 @@ class ResultPage extends StatelessWidget {
                       color: Colors.grey.shade300,
                       textColor: Colors.black,
                       onTap: () {
-                        context.go('/upload');
+                        context.go(AppRoutes.upload);
                       },
                     ),
                   ),
