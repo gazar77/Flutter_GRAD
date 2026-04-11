@@ -17,17 +17,17 @@ class CustomTextField extends StatefulWidget {
 }
 
 class _CustomTextFieldState extends State<CustomTextField> {
-  bool obscure = true;
+  bool _obscure = true;
 
   @override
   Widget build(BuildContext context) {
     return TextField(
       controller: widget.controller,
-      obscureText: widget.isPassword ? obscure : false,
+      obscureText: widget.isPassword ? _obscure : false,
       decoration: InputDecoration(
         hintText: widget.hint,
         filled: true,
-        fillColor: Colors.grey.shade200,
+        fillColor: const Color(0xFFEEEEEE),
         contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(30),
@@ -36,11 +36,11 @@ class _CustomTextFieldState extends State<CustomTextField> {
         suffixIcon: widget.isPassword
             ? IconButton(
                 icon: Icon(
-                  obscure ? Icons.visibility_off : Icons.visibility,
+                  _obscure ? Icons.visibility_off : Icons.visibility,
                 ),
                 onPressed: () {
                   setState(() {
-                    obscure = !obscure;
+                    _obscure = !_obscure;
                   });
                 },
               )

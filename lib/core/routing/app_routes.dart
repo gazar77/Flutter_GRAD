@@ -1,5 +1,6 @@
 class AppRoutes {
   static const String splash = '/';
+  static const String onboarding = '/onboarding';
   static const String login = '/login';
   static const String signup = '/signup';
   static const String forgetPassword = '/forget-password';
@@ -20,4 +21,5 @@ class AppRoutes {
   static const String updateEmail = '/update-email';
   static const String settings = '/settings';
   static const String editPatient = '/edit-patient';
+  static const String dicomConverter = '/dicom-converter';
 }

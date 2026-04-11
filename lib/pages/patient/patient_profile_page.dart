@@ -44,7 +44,7 @@ class PatientProfilePage extends StatelessWidget {
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
+                    color: const Color(0x0D000000),
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -52,7 +52,7 @@ class PatientProfilePage extends StatelessWidget {
               ),
               child: Column(
                 children: [
-                   const CircleAvatar(
+                  const CircleAvatar(
                     radius: 40,
                     backgroundColor: Color(0xFFEAF2FB),
                     child: Icon(Icons.person, size: 40, color: primaryColor),
@@ -68,10 +68,10 @@ class PatientProfilePage extends StatelessWidget {
                     style: const TextStyle(color: Colors.grey),
                   ),
                   const Divider(height: 32),
-                  _infoTile(Icons.cake, 'Age', '${patient['age']} years'),
-                  _infoTile(Icons.person_outline, 'Gender', patient['gender'] ?? 'N/A'),
-                  _infoTile(Icons.phone, 'Phone', patient['phoneNumber'] ?? 'N/A'),
-                  _infoTile(Icons.medical_services_outlined, 'Diseases', patient['chronicDiseases'] ?? 'None'),
+                  _InfoTile(icon: Icons.cake, label: 'Age', value: '${patient['age']} years'),
+                  _InfoTile(icon: Icons.person_outline, label: 'Gender', value: patient['gender'] ?? 'N/A'),
+                  _InfoTile(icon: Icons.phone, label: 'Phone', value: patient['phoneNumber'] ?? 'N/A'),
+                  _InfoTile(icon: Icons.medical_services_outlined, label: 'Diseases', value: patient['chronicDiseases'] ?? 'None'),
                 ],
               ),
             ),
@@ -140,8 +140,21 @@ class PatientProfilePage extends StatelessWidget {
       ),
     );
   }
+}
 
-  Widget _infoTile(IconData icon, String label, String value) {
+class _InfoTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _InfoTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(

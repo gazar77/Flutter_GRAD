@@ -10,18 +10,25 @@ class HomeService {
   Future<HomeDataModel> getHomeData() async {
     try {
       final response = await _dio.get(ApiConstants.dashboard);
-      debugPrint('DEBUG: Home Data success: ${response.data}');
+      debugPrint('DEBUG: Home Data RAW: ${response.data}');
+      debugPrint('DEBUG: Home Data TYPE: ${response.data.runtimeType}');
       return HomeDataModel.fromJson(response.data);
-    } catch (e) {
-      debugPrint('DEBUG: Home Data error: $e');
+    } catch (e, stack) {
+      debugPrint('ERROR: Home Data fetch failed: $e');
+      debugPrint('STACKTRACE: $stack');
       
-      // Return empty model instead of throwing — keeps UI usable even without login
+      // If the error is a DioException, log more details
+      if (e is DioException) {
+        debugPrint('DIO_ERROR: Status=${e.response?.statusCode}, Data=${e.response?.data}');
+      }
+      
       return HomeDataModel(
-        doctorName: '',
+        doctorName: 'Error Loading',
         doctorImage: null,
         totalPatients: 0,
         totalReports: 0,
-        recentAnalyses: [],
+        recentAnalyses: <AnalysisItemModel>[],
+        error: e.toString(),
       );
     }
   }

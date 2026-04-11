@@ -346,7 +346,7 @@ class _SectionHeader extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFF2B4F7A).withValues(alpha: 0.08),
+        color: const Color(0x142B4F7A),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(

@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:fp/core/networking/api_constants.dart';
 import 'package:fp/core/networking/dio_factory.dart';
 import 'package:fp/core/routing/app_routes.dart';
+import 'package:provider/provider.dart';
+import '../../core/app_state.dart';
 
 class ProcessingPage extends StatefulWidget {
   final File file;
@@ -50,6 +52,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
         });
 
         if (mounted) {
+          context.read<AppState>().triggerDashboardRefresh();
           Future.delayed(const Duration(milliseconds: 500), () {
             if (mounted) {
               context.go(
@@ -107,7 +110,7 @@ class _ProcessingPageState extends State<ProcessingPage> {
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: primaryColor.withValues(alpha: 0.25),
+                          color: const Color(0x402B4F7A),
                           blurRadius: 25,
                           spreadRadius: 6,
                         ),

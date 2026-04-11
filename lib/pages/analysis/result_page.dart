@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:fp/core/routing/app_routes.dart';
 import 'package:fp/core/networking/api_constants.dart';
+import 'package:provider/provider.dart';
+import '../../core/app_state.dart';
 
 class _MainButton extends StatelessWidget {
   final String text;
@@ -50,7 +52,7 @@ class _VideoFallback extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: const Color(0xFF2B4F7A).withValues(alpha: 0.06),
+      color: const Color(0x0F2B4F7A),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -188,7 +190,7 @@ class ResultPage extends StatelessWidget {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color: riskColor.withValues(alpha: 0.1),
+                            color: riskColor.withAlpha((0.1 * 255).toInt()),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Text(
@@ -264,6 +266,17 @@ class ResultPage extends StatelessWidget {
                       textColor: Colors.black,
                       onTap: () {
                         context.go(AppRoutes.upload);
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _MainButton(
+                      text: 'Back to Home',
+                      color: Colors.green,
+                      onTap: () {
+                        context.read<AppState>().triggerDashboardRefresh();
+                        context.go(AppRoutes.home);
                       },
                     ),
                   ),

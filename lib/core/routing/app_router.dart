@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'package:flutter/material.dart';
+
 import 'package:go_router/go_router.dart';
 import 'package:fp/pages/auth/signup_page.dart';
 import 'package:fp/pages/auth/verify_code_page.dart';
@@ -20,7 +20,8 @@ import 'package:fp/pages/profile/update_email_page.dart';
 import 'package:fp/pages/profile/profile_page.dart' as profile_page;
 import 'package:fp/pages/profile/settings_page.dart';
 import 'package:fp/pages/auth/login_page.dart';
-import '../../pages/splash/splash_page.dart';
+import 'package:fp/pages/splash/splash_page.dart';
+import 'package:fp/pages/tools/dicom_converter_page.dart';
 import 'app_routes.dart';
 
 class AppRouter {
@@ -31,6 +32,7 @@ class AppRouter {
         path: AppRoutes.splash,
         builder: (context, state) => const SplashPage(),
       ),
+
 
       GoRoute(
         path: AppRoutes.login,
@@ -59,7 +61,7 @@ class AppRouter {
 
       GoRoute(
         path: AppRoutes.home,
-        builder: (context, state) => HomePage(),
+        builder: (context, state) => const HomePage(),
       ),
 
       GoRoute(
@@ -150,22 +152,10 @@ class AppRouter {
           return AddPatientPage(patient: patient);
         },
       ),
+      GoRoute(
+        path: AppRoutes.dicomConverter,
+        builder: (context, state) => const DicomConverterPage(),
+      ),
     ],
   );
-}
-
-class PlaceholderNextPage extends StatelessWidget {
-  const PlaceholderNextPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(
-        child: Text(
-          'Next Screen Here',
-          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-        ),
-      ),
-    );
-  }
 }

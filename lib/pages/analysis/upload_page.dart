@@ -7,6 +7,7 @@ import 'package:fp/core/services/patient_service.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:go_router/go_router.dart';
 import 'package:dio/dio.dart';
+import 'package:video_player/video_player.dart';
 
 class UploadPage extends StatefulWidget {
   const UploadPage({super.key});
@@ -21,6 +22,7 @@ class _UploadPageState extends State<UploadPage> {
   String? selectedFileName;
   List<Map<String, dynamic>> patients = [];
   bool isLoadingPatients = true;
+  VideoPlayerController? _videoController;
 
   @override
   void initState() {
@@ -50,12 +52,52 @@ class _UploadPageState extends State<UploadPage> {
       type: FileType.video,
       allowMultiple: false,
     );
-    if (result != null && result.files.single.path != null) {
+    if (result != null && result.files.isNotEmpty && result.files.first.path != null) {
+      if (_videoController != null) {
+        await _videoController!.dispose();
+        _videoController = null;
+      }
+
       setState(() {
-        selectedFile = File(result.files.single.path!);
-        selectedFileName = result.files.single.name;
+        selectedFile = File(result.files.first.path!);
+        selectedFileName = result.files.first.name;
+      });
+
+      // Automatically try to initialize preview with a safe delay
+      Future.delayed(const Duration(milliseconds: 300), () {
+        if (mounted && selectedFile != null) {
+          _initializeVideoPreview();
+        }
       });
     }
+  }
+
+  Future<void> _initializeVideoPreview() async {
+    if (selectedFile == null) return;
+    
+    try {
+      final controller = VideoPlayerController.file(selectedFile!);
+      await controller.initialize();
+      controller.setLooping(true);
+      controller.play();
+
+      setState(() {
+        _videoController = controller;
+      });
+    } catch (e) {
+      debugPrint('Error initializing video player: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cannot show preview for this video format on this device.')),
+        );
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _videoController?.dispose();
+    super.dispose();
   }
 
   Future<void> _pickDicomFile() async {
@@ -64,10 +106,10 @@ class _UploadPageState extends State<UploadPage> {
       allowMultiple: false,
       allowedExtensions: null,
     );
-    if (result != null && result.files.single.path != null) {
+    if (result != null && result.files.isNotEmpty && result.files.first.path != null) {
       setState(() {
-        selectedFile = File(result.files.single.path!);
-        selectedFileName = result.files.single.name;
+        selectedFile = File(result.files.first.path!);
+        selectedFileName = result.files.first.name;
       });
     }
   }
@@ -139,7 +181,7 @@ class _UploadPageState extends State<UploadPage> {
     return Scaffold(
       backgroundColor: const Color(0xFFF4F4F4),
       appBar: AppBar(
-        title: const Text('Upload Angiography Image'),
+        title: const Text('Upload Angiography Video'),
         backgroundColor: primaryColor,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -224,65 +266,103 @@ class _UploadPageState extends State<UploadPage> {
 
             /// 🔹 Preview
             if (selectedFile != null)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.06),
-                      blurRadius: 8,
-                    ),
-                  ],
-                  border: Border.all(
-                    color: const Color(0xFF2B4F7A).withValues(alpha: 0.4),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Selected File',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                   ),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 50,
-                      height: 50,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF2B4F7A).withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(
-                        Icons.play_circle_fill,
-                        color: Color(0xFF2B4F7A),
-                        size: 32,
-                      ),
+                  const SizedBox(height: 10),
+                  Container(
+                    width: double.infinity,
+                    height: 250,
+                    decoration: BoxDecoration(
+                      color: Colors.black,
+                      borderRadius: BorderRadius.circular(15),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withAlpha((0.3 * 255).toInt()),
+                          blurRadius: 10,
+                          offset: const Offset(0, 5),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(15),
+                      child: Stack(
                         children: [
-                          Text(
-                            selectedFileName ?? selectedFile!.path.split('/').last,
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: Color(0xFF1E1E1E),
+                          if (_videoController != null && _videoController!.value.isInitialized)
+                            Center(
+                              child: AspectRatio(
+                                aspectRatio: _videoController!.value.aspectRatio,
+                                child: VideoPlayer(_videoController!),
+                              ),
+                            )
+                          else if (selectedFileName != null && (selectedFileName!.toLowerCase().endsWith('.mp4') || selectedFileName!.toLowerCase().endsWith('.mov')))
+                            const Center(child: CircularProgressIndicator(color: Colors.white))
+                          else
+                            const Center(
+                              child: Icon(Icons.description, color: Colors.white, size: 64),
                             ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '${(selectedFile!.lengthSync() / (1024 * 1024)).toStringAsFixed(2)} MB',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey,
+                          
+                          // File info overlay
+                          Positioned(
+                            bottom: 0,
+                            left: 0,
+                            right: 0,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.bottomCenter,
+                                  end: Alignment.topCenter,
+                                  colors: [
+                                    Colors.black.withAlpha((0.8 * 255).toInt()),
+                                    Colors.transparent,
+                                  ],
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          selectedFileName ?? 'Selected File',
+                                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        Text(
+                                          '${(selectedFile!.lengthSync() / (1024 * 1024)).toStringAsFixed(2)} MB',
+                                          style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  IconButton(
+                                    onPressed: () {
+                                      setState(() {
+                                        selectedFile = null;
+                                        selectedFileName = null;
+                                        _videoController?.dispose();
+                                        _videoController = null;
+                                      });
+                                    },
+                                    icon: const Icon(Icons.close, color: Colors.white),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ],
                       ),
                     ),
-                    const Icon(Icons.check_circle, color: Colors.green, size: 22),
-                  ],
-                ),
+                  ),
+                ],
               ),
 
             const Spacer(),

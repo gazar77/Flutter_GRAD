@@ -4,8 +4,10 @@ import 'package:provider/provider.dart';
 import '../../core/app_state.dart';
 import '../../core/routing/app_routes.dart';
 import '../../core/services/auth_service.dart';
+import '../../core/services/biometric_service.dart';
 import 'widget/custom_text_field.dart';
 import 'widget/social_button.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -15,30 +17,61 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final emailController = TextEditingController();
-  final passwordController = TextEditingController();
-  bool isLoading = false;
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  bool _isLoading = false;
+  final BiometricService _biometricService = BiometricService();
+
+  @override
+  void initState() {
+    super.initState();
+    // _checkBiometrics(); // Disabled for emulator stability
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _checkBiometrics() async {
+    final enabled = await _biometricService.isBiometricsEnabled();
+    if (enabled) {
+      final authenticated = await _biometricService.authenticate();
+      if (authenticated && mounted) {
+        context.go(AppRoutes.home);
+      }
+    }
+  }
 
   Future<void> _handleLogin() async {
-    if (emailController.text.isEmpty || passwordController.text.isEmpty) {
+    if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter email and password')),
       );
       return;
     }
 
-    setState(() => isLoading = true);
+    setState(() => _isLoading = true);
 
     try {
-      await AuthService().login(
-        emailController.text.trim(),
-        passwordController.text.trim(),
+      final result = await AuthService().login(
+        _emailController.text.trim(),
+        _passwordController.text.trim(),
       );
       if (mounted) {
-        // ✅ Update AppState with the logged-in user's email
-        context.read<AppState>().updateDoctorProfile(
-          email: emailController.text.trim(),
-        );
+        final userData = result['user'];
+        if (userData != null) {
+          context.read<AppState>().updateDoctorProfile(
+            name: userData['fullName'],
+            email: userData['email'],
+            specialty: userData['title'],
+            hospital: userData['hospital'],
+            phone: userData['mobile'],
+            extension: userData['extension'],
+          );
+        }
         context.go(AppRoutes.home);
       }
     } catch (e) {
@@ -49,7 +82,7 @@ class _LoginPageState extends State<LoginPage> {
       }
     } finally {
       if (mounted) {
-        setState(() => isLoading = false);
+        setState(() => _isLoading = false);
       }
     }
   }
@@ -71,7 +104,7 @@ class _LoginPageState extends State<LoginPage> {
                   'assets/images/first_screen.png',
                   height: 180,
                   errorBuilder: (context, error, stackTrace) => const Icon(Icons.favorite, size: 100, color: Colors.red),
-                ),
+                ).animate().fadeIn().scale(),
                 const SizedBox(height: 10),
                 const Text(
                   'Log in',
@@ -89,7 +122,7 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(height: 8),
                 CustomTextField(
                   hint: 'Enter your Email Address',
-                  controller: emailController,
+                  controller: _emailController,
                 ),
                 const SizedBox(height: 20),
                 const Align(
@@ -100,7 +133,7 @@ class _LoginPageState extends State<LoginPage> {
                 CustomTextField(
                   hint: 'Enter Password',
                   isPassword: true,
-                  controller: passwordController,
+                  controller: _passwordController,
                 ),
                 const SizedBox(height: 8),
                 Align(
@@ -115,16 +148,31 @@ class _LoginPageState extends State<LoginPage> {
                   width: double.infinity,
                   height: 55,
                   child: ElevatedButton(
-                    onPressed: isLoading ? null : _handleLogin,
+                    onPressed: _isLoading ? null : _handleLogin,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primaryColor,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
                     ),
-                    child: isLoading
+                    child: _isLoading
                         ? const CircularProgressIndicator(color: Colors.white)
                         : const Text('Login', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600)),
                   ),
                 ),
+                
+                const SizedBox(height: 20),
+                FutureBuilder<bool>(
+                  future: _biometricService.isBiometricsEnabled(),
+                  builder: (context, snapshot) {
+                    if (snapshot.data == true) {
+                      return IconButton(
+                        icon: const Icon(Icons.fingerprint, size: 40, color: primaryColor),
+                        onPressed: _checkBiometrics,
+                      ).animate().shake();
+                    }
+                    return const SizedBox.shrink();
+                  },
+                ),
+
                 const SizedBox(height: 24),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,

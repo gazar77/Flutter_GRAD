@@ -11,13 +11,13 @@ class PatientsPage extends StatefulWidget {
 }
 
 class _PatientsPageState extends State<PatientsPage> {
-  late Future<List<dynamic>> patientsFuture;
-  String searchQuery = '';
+  late Future<List<dynamic>> _patientsFuture;
+  String _searchQuery = '';
 
   @override
   void initState() {
     super.initState();
-    patientsFuture = PatientService().getAllPatients();
+    _patientsFuture = PatientService().getAllPatients();
   }
 
   @override
@@ -53,7 +53,7 @@ class _PatientsPageState extends State<PatientsPage> {
             child: TextField(
               onChanged: (value) {
                 setState(() {
-                  searchQuery = value.toLowerCase();
+                  _searchQuery = value.toLowerCase();
                 });
               },
               decoration: InputDecoration(
@@ -70,7 +70,7 @@ class _PatientsPageState extends State<PatientsPage> {
           ),
           Expanded(
             child: FutureBuilder<List<dynamic>>(
-              future: patientsFuture,
+              future: _patientsFuture,
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
@@ -84,7 +84,7 @@ class _PatientsPageState extends State<PatientsPage> {
 
                 final filtered = snapshot.data!.where((p) {
                   final name = (p['fullName'] ?? '').toString().toLowerCase();
-                  return name.contains(searchQuery);
+                  return name.contains(_searchQuery);
                 }).toList();
 
                 return ListView.builder(
@@ -162,7 +162,7 @@ class _PatientsPageState extends State<PatientsPage> {
                     const SnackBar(content: Text('Patient deleted successfully')),
                   );
                   setState(() {
-                    patientsFuture = PatientService().getAllPatients();
+                    _patientsFuture = PatientService().getAllPatients();
                   });
                 }
               } catch (e) {

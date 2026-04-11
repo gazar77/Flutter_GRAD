@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:fp/core/routing/app_routes.dart';
-import 'package:fp/core/services/patient_service.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import '../../core/app_state.dart';
+import '../../core/routing/app_routes.dart';
+import '../../core/services/patient_service.dart';
 
 class AddPatientPage extends StatefulWidget {
   final Map<String, dynamic>? patient;
@@ -145,6 +147,7 @@ class _AddPatientPageState extends State<AddPatientPage> {
       }
 
       if (mounted) {
+        context.read<AppState>().triggerDashboardRefresh();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(widget.patient != null ? 'Patient updated successfully' : 'Patient saved successfully')),
         );
@@ -472,7 +475,7 @@ class _SectionCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: const Color(0x0D000000),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),

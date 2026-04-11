@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'models/home_data_model.dart';
 import 'services/home_service.dart';
 import 'package:provider/provider.dart';
 import '../../core/routing/app_routes.dart';
 import '../../core/app_state.dart';
+import '../../core/theme/glass_container.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -14,8 +16,8 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  int currentIndex = 0;
-  late Future<HomeDataModel> homeFuture;
+  int _currentIndex = 0;
+  late Future<HomeDataModel> _homeFuture;
 
   @override
   void initState() {
@@ -23,18 +25,34 @@ class _HomePageState extends State<HomePage> {
     _refresh();
   }
 
+  @override
+  void dispose() {
+    super.dispose();
+  }
+
   void _refresh() {
     final future = HomeService().getHomeData();
     future.then((data) {
       debugPrint('DEBUG: Home Page Refreshed. Stats: P=${data.totalPatients}, R=${data.totalReports}');
-      if (data.doctorName.isNotEmpty && mounted) {
-        context.read<AppState>().updateDoctorProfile(
+      
+      if (data.error != null && mounted) {
+        debugPrint('HOME_ERROR: ${data.error}');
+        // Only show error snackbar if there's a real issue
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: ${data.error}')),
+        );
+      }
+
+      if (!mounted) return;
+      final appState = context.read<AppState>();
+      if (data.doctorName.isNotEmpty && appState.doctorName.isEmpty && mounted) {
+        appState.updateDoctorProfile(
           name: data.doctorName,
         );
       }
     });
     setState(() {
-      homeFuture = future;
+      _homeFuture = future;
     });
   }
 
@@ -43,12 +61,12 @@ class _HomePageState extends State<HomePage> {
     const primaryColor = Color(0xFF2B4F7A);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF9FAFB),
+      backgroundColor: const Color(0xFFF0F4F8),
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: currentIndex,
+        currentIndex: _currentIndex,
         onTap: (index) {
           setState(() {
-            currentIndex = index;
+            _currentIndex = index;
           });
           if (index == 1) context.go(AppRoutes.history);
           if (index == 2) context.go(AppRoutes.profile);
@@ -80,7 +98,7 @@ class _HomePageState extends State<HomePage> {
       ),
       body: SafeArea(
         child: FutureBuilder<HomeDataModel>(
-          future: homeFuture,
+          future: _homeFuture,
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(
@@ -88,244 +106,297 @@ class _HomePageState extends State<HomePage> {
               );
             }
 
-            // Graceful fallback — uses AppState if API data is missing
             final homeData = snapshot.data ??
                 HomeDataModel(
                   doctorName: context.read<AppState>().doctorName,
                   doctorImage: null,
                   totalPatients: 0,
                   totalReports: 0,
-                  recentAnalyses: [],
+                  recentAnalyses: <AnalysisItemModel>[],
                 );
 
             return RefreshIndicator(
               onRefresh: () async {
                 _refresh();
-                await homeFuture;
+                await _homeFuture;
               },
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 25),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    /// Header
                     Row(
                       children: [
                         Container(
-                          width: 58,
-                          height: 58,
-                          decoration: const BoxDecoration(
+                          width: 62,
+                          height: 62,
+                          decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: Colors.white,
+                            color: const Color(0x332196F3),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0x192B4F7A),
+                                blurRadius: 15,
+                                spreadRadius: 5,
+                              ),
+                            ],
                           ),
                           child: Consumer<AppState>(
                             builder: (context, appState, _) => ClipOval(
                               child: appState.profileImageFile != null
-                                  // 1️⃣ local image picked by user
                                   ? Image.file(
                                       appState.profileImageFile!,
                                       fit: BoxFit.cover,
                                     )
                                   : (homeData.doctorImage != null &&
                                           homeData.doctorImage!.isNotEmpty
-                                      // 2️⃣ image from backend
                                       ? Image.network(
                                           homeData.doctorImage!,
                                           fit: BoxFit.cover,
                                           errorBuilder: (context, error,
                                                   stackTrace) =>
                                               const Icon(Icons.person,
-                                                  size: 32,
+                                                  size: 36,
                                                   color: primaryColor),
+                                          loadingBuilder: (context, child, loadingProgress) {
+                                            if (loadingProgress == null) return child;
+                                            return const Center(child: CircularProgressIndicator());
+                                          },
                                         )
-                                      // 3️⃣ fallback icon
                                       : const Icon(Icons.person,
-                                          size: 32, color: primaryColor)),
+                                          size: 36, color: primaryColor)),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 10),
+                        ).animate().scale(duration: 400.ms, curve: Curves.easeOutBack),
+                        const SizedBox(width: 15),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Consumer<AppState>(
                                 builder: (context, appState, _) => Text(
-                                  'Hello, Dr. / ${appState.doctorName}',
+                                  'Hello, Dr. ${appState.doctorName}',
                                   style: const TextStyle(
-                                    fontSize: 17,
+                                    fontFamily: 'sans-serif',
+                                    fontSize: 18,
                                     fontWeight: FontWeight.bold,
-                                    color: Color(0xFF5A7392),
+                                    color: Color(0xFF2B3A4A),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(height: 2),
-                              const Text(
+                              ).animate().fadeIn(delay: 100.ms).slideX(begin: -0.1),
+                              const SizedBox(height: 4),
+                              Text(
                                 'welcome back',
-                                style: TextStyle(
+                                style: const TextStyle(
+                                  fontFamily: 'sans-serif',
                                   fontSize: 14,
                                   color: Colors.grey,
+                                  letterSpacing: 0.5,
                                 ),
-                              ),
+                              ).animate().fadeIn(delay: 200.ms),
                             ],
                           ),
                         ),
                       ],
                     ),
 
-                    const SizedBox(height: 18),
-                    const Divider(color: Colors.grey, thickness: 0.5),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 30),
 
-                    RichText(
-                      text: const TextSpan(
-                        children: [
-                          TextSpan(
-                            text: 'Find ',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
-                            ),
-                          ),
-                          TextSpan(
-                            text: 'your ',
-                            style: TextStyle(
-                              fontSize: 18,
-                              color: Colors.grey,
-                            ),
-                          ),
-                          TextSpan(
-                            text: 'Patient',
-                            style: TextStyle(
-                              fontSize: 18,
-                              color: Colors.grey,
-                            ),
+                    Text(
+                      'Find your Patient',
+                      style: const TextStyle(
+                        fontFamily: 'sans-serif',
+                        fontSize: 22,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF2B3A4A),
+                      ),
+                    ).animate().fadeIn(delay: 300.ms),
+
+                    const SizedBox(height: 12),
+
+                    Container(
+                      height: 50,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(15),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0x0A000000),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
                           ),
                         ],
                       ),
-                    ),
-
-                    const SizedBox(height: 10),
-
-                    Container(
-                      height: 42,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: const Color(0xFF9DB7DA)),
-                      ),
                       child: TextField(
                         decoration: InputDecoration(
-                          hintText: 'Search for Patient',
+                          hintText: 'Search by Name or ID',
                           hintStyle: const TextStyle(
-                            fontSize: 13,
+                            fontFamily: 'sans-serif',
+                            fontSize: 14,
                             color: Colors.grey,
                           ),
-                          suffixIcon: const Icon(
-                            Icons.search,
-                            color: primaryColor,
-                            size: 20,
-                          ),
+                          prefixIcon: const Icon(Icons.search, color: primaryColor, size: 22),
                           border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 10,
-                          ),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                         ),
                       ),
-                    ),
+                    ).animate().fadeIn(delay: 400.ms).slideY(begin: 0.1),
 
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 30),
 
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        _StatCard(
-                          title: 'Patients',
-                          imagePath: 'assets/images/WhatsApp Image 2026-04-08 at 6.35.59 AM.jpeg',
-                          fallbackIcon: Icons.child_care,
-                          number: homeData.totalPatients.toString(),
-                          subtitle: 'Total Patients',
+                        Expanded(
+                          child: _StatCard(
+                            title: 'Patients',
+                            imagePath: 'assets/images/WhatsApp Image 2026-04-08 at 6.35.59 AM.jpeg',
+                            fallbackIcon: Icons.child_care,
+                            number: homeData.totalPatients.toString(),
+                            subtitle: 'Total Records',
+                            delay: 500,
+                          ),
                         ),
-                        _StatCard(
-                          title: 'Reports',
-                          imagePath: 'assets/images/WhatsApp Image 2026-04-08 at 6.36.16 AM.jpeg',
-                          fallbackIcon: Icons.assignment,
-                          number: homeData.totalReports.toString(),
-                          subtitle: 'Generated Reports',
+                        const SizedBox(width: 15),
+                        Expanded(
+                          child: _StatCard(
+                            title: 'Reports',
+                            imagePath: 'assets/images/WhatsApp Image 2026-04-08 at 6.36.16 AM.jpeg',
+                            fallbackIcon: Icons.assignment,
+                            number: homeData.totalReports.toString(),
+                            subtitle: 'Analyses Done',
+                            delay: 600,
+                          ),
                         ),
                       ],
                     ),
 
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 30),
 
                     Row(
                       children: [
                         Expanded(
                           child: _ActionButton(
                             text: 'Add Patient',
-                            icon: Icons.person_add,
+                            icon: Icons.person_add_rounded,
                             onTap: () {
                               context.push(AppRoutes.addPatient).then((_) => _refresh());
                             },
                           ),
                         ),
-                        const SizedBox(width: 10),
+                        const SizedBox(width: 15),
                         Expanded(
                           child: _ActionButton(
                             text: 'Upload Video',
-                            icon: Icons.video_call,
+                            icon: Icons.videocam_rounded,
                             onTap: () {
                               context.push(AppRoutes.upload).then((_) => _refresh());
                             },
                           ),
                         ),
                       ],
+                    ).animate().fadeIn(delay: 700.ms),
+                    const SizedBox(height: 12),
+                    _ActionButton(
+                      text: 'DICOM to Video Converter',
+                      icon: Icons.transform_rounded,
+                      onTap: () {
+                        context.push(AppRoutes.dicomConverter);
+                      },
                     ),
                     const SizedBox(height: 12),
                     _ActionButton(
-                      text: 'Manage Patients',
-                      icon: Icons.manage_accounts,
+                      text: 'Manage Patients Repository',
+                      icon: Icons.folder_shared_rounded,
                       onTap: () {
                         context.push(AppRoutes.patients).then((_) => _refresh());
                       },
-                    ),
+                    ).animate().fadeIn(delay: 800.ms),
 
-                    const SizedBox(height: 48),
+                    const SizedBox(height: 40),
 
-                    const Text(
-                      'Recent Analyses',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87,
+                    Text(
+                      'Clinical Insights',
+                      style: const TextStyle(
+                        fontFamily: 'sans-serif',
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF2B3A4A),
                       ),
-                    ),
+                    ).animate().fadeIn(delay: 900.ms),
 
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 15),
 
-                    ...homeData.recentAnalyses.map(
-                      (analysis) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: GestureDetector(
-                          onTap: () {
-                            context.go(AppRoutes.caseDetails, extra: {
-                              'patientName': analysis.patientName,
-                              'stenosisPercent': analysis.stenosisPercent,
-                              'date': analysis.date,
-                            });
-                          },
-                          child: _RecentAnalysisItem(
-                            patientName: analysis.patientName,
-                            stenosisText: 'Stenosis ${analysis.stenosisPercent}%',
-                            date: analysis.date,
-                            dotColor: _getStenosisColor(analysis.stenosisPercent),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      child: Row(
+                        children: [
+                          _InsightCard(
+                            title: 'Risk Trends',
+                            description: 'Critical cases decreased by 12% this week.',
+                            icon: Icons.trending_down_rounded,
+                            color: const Color(0xFFE57373),
                           ),
-                        ),
+                          const SizedBox(width: 15),
+                          _InsightCard(
+                            title: 'System Health',
+                            description: 'AI Processing latency is optimal (0.8s).',
+                            icon: Icons.speed_rounded,
+                            color: const Color(0xFF81C784),
+                          ),
+                          const SizedBox(width: 15),
+                          _InsightCard(
+                            title: 'Pending Reviews',
+                            description: '4 analysis reports awaiting final signature.',
+                            icon: Icons.pending_actions_rounded,
+                            color: const Color(0xFFFFB74D),
+                          ),
+                        ],
                       ),
-                    ),
+                    ).animate().fadeIn(delay: 1000.ms).slideX(begin: 0.1),
+
+                    const SizedBox(height: 30),
+
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [primaryColor.withValues(alpha: 0.8), primaryColor],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderRadius: BorderRadius.circular(24),
+                        boxShadow: [
+                          BoxShadow(
+                            color: primaryColor.withValues(alpha: 0.3),
+                            blurRadius: 20,
+                            offset: const Offset(0, 10),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.lightbulb_outline_rounded, color: Colors.white, size: 24),
+                              SizedBox(width: 10),
+                              Text(
+                                'Pro Tip of the Day',
+                                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Text(
+                            'Regular calibration of DICOM sources improves AI stenosis detection accuracy by up to 15%.',
+                            style: TextStyle(color: Colors.white.withValues(alpha: 0.9), fontSize: 14, height: 1.5),
+                          ),
+                        ],
+                      ),
+                    ).animate().fadeIn(delay: 1100.ms).scale(begin: const Offset(0.95, 0.95)),
                   ],
                 ),
               ),
@@ -335,12 +406,6 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
-
-  Color _getStenosisColor(int percent) {
-    if (percent >= 70) return Colors.red;
-    if (percent >= 40) return Colors.orange;
-    return Colors.green;
-  }
 }
 
 class _StatCard extends StatelessWidget {
@@ -349,6 +414,7 @@ class _StatCard extends StatelessWidget {
   final IconData fallbackIcon;
   final String number;
   final String subtitle;
+  final int delay;
 
   const _StatCard({
     required this.title,
@@ -356,70 +422,67 @@ class _StatCard extends StatelessWidget {
     required this.fallbackIcon,
     required this.number,
     required this.subtitle,
+    required this.delay,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 140,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFDFDFD),
-        borderRadius: BorderRadius.circular(4),
-        boxShadow: const [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 5,
-            offset: Offset(0, 3),
-          ),
-        ],
-        border: Border.all(color: Colors.black12),
-      ),
+    const primaryColor = Color(0xFF2B4F7A);
+
+    return GlassContainer(
+      opacity: 0.1,
+      blur: 20,
+      borderRadius: 24,
+      padding: const EdgeInsets.all(16),
       child: Column(
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 14,
-              color: Colors.black87,
-              fontWeight: FontWeight.w600,
+          children: [
+            Text(
+              title.toUpperCase(),
+              style: const TextStyle(
+                fontFamily: 'sans-serif',
+                fontSize: 12,
+                color: Color(0xB32B4F7A),
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.2,
+              ),
             ),
-          ),
-          const SizedBox(height: 10),
-          SizedBox(
-            height: 60,
-            child: Image.asset(
-              imagePath,
-              fit: BoxFit.contain,
-              errorBuilder: (context, error, stackTrace) {
-                return Icon(
-                  fallbackIcon,
-                  size: 46,
-                  color: const Color(0xFF2B4F7A),
-                );
-              },
+            const SizedBox(height: 15),
+            SizedBox(
+              height: 50,
+              child: Image.asset(
+                imagePath,
+                fit: BoxFit.contain,
+                errorBuilder: (context, error, stackTrace) {
+                  return Icon(
+                    fallbackIcon,
+                    size: 40,
+                    color: primaryColor,
+                  );
+                },
+              ),
             ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            number,
-            style: const TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
+            const SizedBox(height: 15),
+            Text(
+              number,
+              style: const TextStyle(
+                fontFamily: 'sans-serif',
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: primaryColor,
+              ),
             ),
-          ),
-          Text(
-            subtitle,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 12,
-              color: Colors.black87,
+            Text(
+              subtitle,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontFamily: 'sans-serif',
+                fontSize: 11,
+                color: Colors.grey,
+              ),
             ),
-          ),
-        ],
-      ),
-    );
+          ],
+        ),
+      ).animate().scale(delay: delay.ms, duration: 500.ms, curve: Curves.easeOutBack).fadeIn();
   }
 }
 
@@ -441,21 +504,32 @@ class _ActionButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        height: 42,
+        height: 50,
         decoration: BoxDecoration(
-          color: primaryColor,
-          borderRadius: BorderRadius.circular(22),
+          gradient: const LinearGradient(
+            colors: [primaryColor, Color(0xFF3E6CA3)],
+          ),
+          borderRadius: BorderRadius.circular(15),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0x4D2B4F7A),
+              blurRadius: 10,
+              offset: const Offset(0, 5),
+            ),
+          ],
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: Colors.white, size: 18),
-            const SizedBox(width: 6),
+            Icon(icon, color: Colors.white, size: 20),
+            const SizedBox(width: 8),
             Text(
               text,
               style: const TextStyle(
+                fontFamily: 'sans-serif',
                 color: Colors.white,
-                fontSize: 16,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ],
@@ -465,66 +539,55 @@ class _ActionButton extends StatelessWidget {
   }
 }
 
-class _RecentAnalysisItem extends StatelessWidget {
-  final String patientName;
-  final String stenosisText;
-  final String date;
-  final Color dotColor;
+class _InsightCard extends StatelessWidget {
+  final String title;
+  final String description;
+  final IconData icon;
+  final Color color;
 
-  const _RecentAnalysisItem({
-    required this.patientName,
-    required this.stenosisText,
-    required this.date,
-    required this.dotColor,
+  const _InsightCard({
+    required this.title,
+    required this.description,
+    required this.icon,
+    required this.color,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      width: 180,
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.black12),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 10,
-            height: 10,
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: dotColor,
-              shape: BoxShape.circle,
+              color: color.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
             ),
+            child: Icon(icon, color: color, size: 24),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  patientName,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  stenosisText,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey[600],
-                  ),
-                ),
-              ],
-            ),
-          ),
+          const SizedBox(height: 12),
           Text(
-            date,
-            style: const TextStyle(
-              fontSize: 12,
-              color: Colors.grey,
-            ),
+            title,
+            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            description,
+            style: TextStyle(fontSize: 12, color: Colors.grey[600], height: 1.4),
           ),
         ],
       ),

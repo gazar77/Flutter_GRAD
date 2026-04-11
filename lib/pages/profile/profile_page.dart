@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../core/routing/app_routes.dart';
 import '../../core/app_state.dart';
 import '../../core/networking/api_constants.dart';
@@ -54,12 +54,11 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _pickProfileImage() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.image,
-      allowMultiple: false,
-    );
-    if (result != null && result.files.single.path != null && mounted) {
-      context.read<AppState>().setProfileImage(File(result.files.single.path!));
+    final picker = ImagePicker();
+    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+    
+    if (image != null && mounted) {
+      context.read<AppState>().setProfileImage(File(image.path));
     }
   }
 
@@ -133,12 +132,12 @@ class _ProfilePageState extends State<ProfilePage> {
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: primaryColor.withValues(alpha: 0.6),
+                              color: const Color(0x992B4F7A),
                               width: 4,
                             ),
                             boxShadow: [
                               BoxShadow(
-                                color: primaryColor.withValues(alpha: 0.12),
+                                color: const Color(0x1F2B4F7A),
                                 blurRadius: 18,
                                 offset: const Offset(0, 6),
                               ),
@@ -496,7 +495,7 @@ class _ProfilePageState extends State<ProfilePage> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.9),
+              color: const Color(0xE6FFFFFF),
               shape: BoxShape.circle,
             ),
             child: Icon(

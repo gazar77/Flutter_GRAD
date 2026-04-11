@@ -1,9 +1,15 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AppState extends ChangeNotifier {
+  static const String _profileImagePathKey = 'profile_image_path';
+
   bool _isLoading = false;
   bool get isLoading => _isLoading;
+
+  bool _isDarkMode = false;
+  bool get isDarkMode => _isDarkMode;
 
   File? _profileImageFile;
   String _doctorName = '';
@@ -21,13 +27,29 @@ class AppState extends ChangeNotifier {
   String get doctorPhone => _doctorPhone;
   String get doctorExtension => _doctorExtension;
 
-  void setProfileImage(File file) {
+  Future<void> loadProfileImage() async {
+    final prefs = await SharedPreferences.getInstance();
+    final path = prefs.getString(_profileImagePathKey);
+    if (path != null && File(path).existsSync()) {
+      _profileImageFile = File(path);
+      notifyListeners();
+    }
+  }
+
+  Future<void> setProfileImage(File file) async {
     _profileImageFile = file;
     notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_profileImagePathKey, file.path);
   }
 
   void setLoading(bool value) {
     _isLoading = value;
+    notifyListeners();
+  }
+
+  void toggleDarkMode(bool value) {
+    _isDarkMode = value;
     notifyListeners();
   }
 
@@ -39,12 +61,20 @@ class AppState extends ChangeNotifier {
     String? phone,
     String? extension,
   }) {
-    if (name != null) _doctorName = name;
-    if (specialty != null) _doctorSpecialty = specialty;
-    if (hospital != null) _doctorHospital = hospital;
-    if (email != null) _doctorEmail = email;
-    if (phone != null) _doctorPhone = phone;
-    if (extension != null) _doctorExtension = extension;
+    bool changed = false;
+    if (name != null && name != _doctorName) { _doctorName = name; changed = true; }
+    if (specialty != null && specialty != _doctorSpecialty) { _doctorSpecialty = specialty; changed = true; }
+    if (hospital != null && hospital != _doctorHospital) { _doctorHospital = hospital; changed = true; }
+    if (email != null && email != _doctorEmail) { _doctorEmail = email; changed = true; }
+    if (phone != null && phone != _doctorPhone) { _doctorPhone = phone; changed = true; }
+    if (extension != null && extension != _doctorExtension) { _doctorExtension = extension; changed = true; }
+    
+    if (changed) {
+      notifyListeners();
+    }
+  }
+
+  void triggerDashboardRefresh() {
     notifyListeners();
   }
 }

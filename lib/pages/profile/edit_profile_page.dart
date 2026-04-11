@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../core/routing/app_routes.dart';
 import '../../core/app_state.dart';
+import 'services/doctor_service.dart';
 
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key});
@@ -18,6 +19,47 @@ class _EditProfilePageState extends State<EditProfilePage> {
   late TextEditingController emailController;
   late TextEditingController phoneController;
   late TextEditingController extensionController;
+  bool _isSaving = false;
+
+  void _saveProfile() async {
+    setState(() => _isSaving = true);
+    
+    final success = await DoctorService().updateProfile(
+      name: nameController.text,
+      hospital: hospitalController.text,
+      title: specialtyController.text,
+      mobile: phoneController.text,
+      extension: extensionController.text,
+    );
+
+    if (!mounted) return;
+    setState(() => _isSaving = false);
+
+    if (success) {
+      context.read<AppState>().updateDoctorProfile(
+        name: nameController.text,
+        hospital: hospitalController.text,
+        specialty: specialtyController.text,
+        email: emailController.text,
+        phone: phoneController.text,
+        extension: extensionController.text,
+      );
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Profile updated successfully')),
+      );
+
+      if (context.canPop()) {
+        context.pop();
+      } else {
+        context.go(AppRoutes.profile);
+      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to update profile. Please try again.')),
+      );
+    }
+  }
 
   @override
   void initState() {
@@ -82,33 +124,15 @@ class _EditProfilePageState extends State<EditProfilePage> {
               width: double.infinity,
               height: 50,
               child: ElevatedButton(
-                onPressed: () {
-                  context.read<AppState>().updateDoctorProfile(
-                        name: nameController.text,
-                        hospital: hospitalController.text,
-                        specialty: specialtyController.text,
-                        email: emailController.text,
-                        phone: phoneController.text,
-                        extension: extensionController.text,
-                      );
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Profile updated successfully')),
-                  );
-
-                  if (context.mounted) {
-                    if (context.canPop()) {
-                      context.pop();
-                    } else {
-                      context.go(AppRoutes.profile);
-                    }
-                  }
-                },
+                onPressed: _isSaving ? null : _saveProfile,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: primaryColor,
                   foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                child: const Text('Save Changes'),
+                child: _isSaving 
+                  ? const CircularProgressIndicator(color: Colors.white)
+                  : const Text('Save Changes', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
             ),
           ],
