@@ -23,7 +23,12 @@ class AuthService {
       
       return data;
     } catch (e) {
-      throw Exception('Login failed: $e');
+      if (e is DioException) {
+        if (e.response?.statusCode == 401) {
+          throw Exception('invalid_credentials');
+        }
+      }
+      throw Exception('login_error');
     }
   }
 

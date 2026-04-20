@@ -47,10 +47,9 @@ class PatientService {
     }
   }
 
-  Future<Map<String, dynamic>> updatePatient(int id, Map<String, dynamic> data) async {
+  Future<void> updatePatient(int id, Map<String, dynamic> data) async {
     try {
-      final response = await _dio.put('${ApiConstants.patients}/$id', data: data);
-      return response.data;
+      await _dio.put('${ApiConstants.patients}/$id', data: data);
     } catch (e) {
       throw Exception('Error updating patient: $e');
     }

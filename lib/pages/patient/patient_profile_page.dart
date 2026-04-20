@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:fp/core/routing/app_routes.dart';
+import 'package:fp/core/services/patient_service.dart';
+import '../../core/app_state.dart';
+import 'package:provider/provider.dart';
 
 class PatientProfilePage extends StatelessWidget {
   final Map<String, dynamic> patient;
@@ -29,6 +32,18 @@ class PatientProfilePage extends StatelessWidget {
             }
           },
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit_outlined),
+            onPressed: () {
+              context.push(AppRoutes.editPatient, extra: patient);
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_outline, color: Colors.white),
+            onPressed: () => _showDeleteDialog(context),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -137,6 +152,45 @@ class PatientProfilePage extends StatelessWidget {
               ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showDeleteDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Delete Patient'),
+        content: Text('Are you sure you want to delete ${patient['fullName']}? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(dialogContext);
+              final messenger = ScaffoldMessenger.of(context);
+              try {
+                await PatientService().deletePatient(patient['id']);
+                if (context.mounted) {
+                  context.read<AppState>().triggerDashboardRefresh();
+                  messenger.showSnackBar(
+                    const SnackBar(content: Text('Patient deleted successfully')),
+                  );
+                  context.go(AppRoutes.patients);
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  messenger.showSnackBar(
+                    SnackBar(content: Text('Error deleting patient: $e')),
+                  );
+                }
+              }
+            },
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+          ),
+        ],
       ),
     );
   }

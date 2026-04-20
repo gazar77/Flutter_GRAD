@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+
 import '../../core/routing/app_routes.dart';
 import '../../core/networking/token_manager.dart';
 import '../../core/services/biometric_service.dart';
 import '../../core/app_state.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/widgets/app_card.dart';
+import '../../core/localization/app_localizations.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -29,207 +33,200 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _loadSettings() async {
     final available = await _biometricService.isBiometricAvailable();
     final enabled = await _biometricService.isBiometricsEnabled();
-    setState(() {
-      isBiometricAvailable = available;
-      biometricsEnabled = enabled;
-    });
+    if (mounted) {
+      setState(() {
+        isBiometricAvailable = available;
+        biometricsEnabled = enabled;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    const primaryColor = Color(0xFF2B4F7A);
     final appState = context.watch<AppState>();
 
     return Scaffold(
-      backgroundColor: appState.isDarkMode ? const Color(0xFF1A1A1A) : const Color(0xFFF4F4F4),
+      appBar: AppBar(
+        title: Text('settings'.tr(context)),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
+        ),
+      ),
       body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            /// GRADIENT HEADER
-            Container(
-              width: double.infinity,
-              height: 140,
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0xFF1E3A5F), Color(0xFF3E6A9A)],
+            _buildSection(
+              context,
+              'security'.tr(context),
+              [
+                _buildSwitchTile(
+                  context,
+                  'biometric_setting'.tr(context),
+                  Icons.fingerprint_rounded,
+                  biometricsEnabled,
+                  isBiometricAvailable,
+                  (v) async {
+                    await _biometricService.setBiometricsEnabled(v);
+                    setState(() => biometricsEnabled = v);
+                  },
                 ),
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(50),
-                  bottomRight: Radius.circular(50),
-                ),
-              ),
-              child: SafeArea(
-                bottom: false,
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.arrow_back, color: Colors.white),
-                          onPressed: () {
-                            if (context.canPop()) {
-                              context.pop();
-                            } else {
-                              context.go(AppRoutes.home);
-                            }
-                          },
-                        ),
-                        const Spacer(),
-                      ],
-                    ),
-                    const Text(
-                      "Settings",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              ],
             ),
+            const SizedBox(height: 24),
+            _buildSection(
+              context,
+              'notifications'.tr(context),
+              [
+                _buildSwitchTile(
+                  context,
+                  'new_analysis'.tr(context),
+                  Icons.analytics_rounded,
+                  newAnalysisNotification,
+                  true,
+                  (v) => setState(() => newAnalysisNotification = v),
+                ),
+                const Divider(),
+                _buildSwitchTile(
+                  context,
+                  'system_alerts'.tr(context),
+                  Icons.notifications_active_rounded,
+                  systemAlertsNotification,
+                  true,
+                  (v) => setState(() => systemAlertsNotification = v),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            _buildSection(
+              context,
+              'preferences'.tr(context),
+              [
+                _buildLanguageTile(context, appState),
+                const Divider(),
+                _buildSwitchTile(
+                  context,
+                  'dark_mode'.tr(context),
+                  Icons.dark_mode_rounded,
+                  appState.isDarkMode,
+                  true,
+                  (v) => appState.toggleDarkMode(v),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            _buildSection(
+              context,
+              'support'.tr(context),
+              [
+                _buildLinkTile(context, 'help_center'.tr(context), Icons.help_outline_rounded, () {}),
+                const Divider(),
+                _buildLinkTile(context, 'about_app'.tr(context), Icons.info_outline_rounded, () {}),
+              ],
+            ),
+            const SizedBox(height: 48),
+            _buildLogoutButton(context),
+            const SizedBox(height: 40),
+          ],
+        ),
+      ),
+    );
+  }
 
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  /// ACCOUNT SETTINGS
-                  _sectionHeader("ACCOUNT SETTINGS", appState.isDarkMode),
-                  _settingsCard([
-                    _settingsTile(
-                      icon: Icons.person_search,
-                      title: "Edit Profile",
-                      onTap: () => context.push(AppRoutes.editProfile),
-                      isDark: appState.isDarkMode,
-                    ),
-                    _settingsTile(
-                      icon: Icons.lock_outline,
-                      title: "Change Password",
-                      onTap: () => context.push(AppRoutes.changePassword),
-                      isDark: appState.isDarkMode,
-                    ),
-                    _settingsTile(
-                      icon: Icons.email_outlined,
-                      title: "Update Email",
-                      onTap: () => context.push(AppRoutes.updateEmail),
-                      isDark: appState.isDarkMode,
-                    ),
-                  ], appState.isDarkMode),
+  Widget _buildSection(BuildContext context, String title, List<Widget> children) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 12),
+          child: Text(
+            title,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.2,
+                ),
+          ),
+        ),
+        AppCard(
+          padding: EdgeInsets.zero,
+          child: Column(children: children),
+        ),
+      ],
+    );
+  }
 
-                  const SizedBox(height: 20),
+  Widget _buildSwitchTile(
+    BuildContext context,
+    String title,
+    IconData icon,
+    bool value,
+    bool enabled,
+    ValueChanged<bool> onChanged,
+  ) {
+    return ListTile(
+      leading: Icon(icon, color: enabled ? AppColors.primary : AppColors.textMuted),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
+      trailing: Switch.adaptive(
+        value: value,
+        onChanged: enabled ? onChanged : null,
+      ),
+    );
+  }
 
-                  /// SECURITY
-                  _sectionHeader("SECURITY", appState.isDarkMode),
-                  _settingsCard([
-                    _switchTile(
-                      icon: Icons.fingerprint,
-                      title: "Biometric Login",
-                      subtitle: isBiometricAvailable ? "Secure your access" : "Not available on this device",
-                      value: biometricsEnabled,
-                      enabled: isBiometricAvailable,
-                      isDark: appState.isDarkMode,
-                      onChanged: (v) async {
-                        await _biometricService.setBiometricsEnabled(v);
-                        setState(() => biometricsEnabled = v);
-                      },
-                    ),
-                  ], appState.isDarkMode),
+  Widget _buildLanguageTile(BuildContext context, AppState appState) {
+    return ListTile(
+      leading: const Icon(Icons.language_rounded, color: AppColors.primary),
+      title: Text('language'.tr(context), style: const TextStyle(fontWeight: FontWeight.w500)),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            appState.locale == 'en' ? 'English' : 'العربية',
+            style: const TextStyle(color: AppColors.textMuted),
+          ),
+          const SizedBox(width: 8),
+          const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.textMuted),
+        ],
+      ),
+      onTap: () => _showLanguageDialog(context, appState),
+    );
+  }
 
-                  const SizedBox(height: 20),
+  Widget _buildLinkTile(BuildContext context, String title, IconData icon, VoidCallback onTap) {
+    return ListTile(
+      leading: Icon(icon, color: AppColors.primary),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w500)),
+      trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.textMuted),
+      onTap: onTap,
+    );
+  }
 
-                  /// NOTIFICATIONS
-                  _sectionHeader("NOTIFICATIONS", appState.isDarkMode),
-                  _settingsCard([
-                    _switchTile(
-                      icon: Icons.bar_chart,
-                      title: "New Analysis Result",
-                      value: newAnalysisNotification,
-                      isDark: appState.isDarkMode,
-                      onChanged: (v) =>
-                          setState(() => newAnalysisNotification = v),
-                    ),
-                    _switchTile(
-                      icon: Icons.warning_amber_rounded,
-                      title: "System Alerts",
-                      value: systemAlertsNotification,
-                      isDark: appState.isDarkMode,
-                      onChanged: (v) =>
-                          setState(() => systemAlertsNotification = v),
-                    ),
-                  ], appState.isDarkMode),
-
-                  const SizedBox(height: 20),
-
-                  /// PREFERENCES
-                  _sectionHeader("PREFERENCES", appState.isDarkMode),
-                  _settingsCard([
-                    _settingsTile(
-                      icon: Icons.translate,
-                      title: "Language (Arabic / English)",
-                      onTap: () {},
-                      isDark: appState.isDarkMode,
-                    ),
-                    _switchTile(
-                      icon: Icons.dark_mode_outlined,
-                      title: "Dark Mode",
-                      value: appState.isDarkMode,
-                      isDark: appState.isDarkMode,
-                      onChanged: (v) => appState.toggleDarkMode(v),
-                    ),
-                  ], appState.isDarkMode),
-
-                  const SizedBox(height: 20),
-
-                  /// SUPPORT
-                  _sectionHeader("SUPPORT", appState.isDarkMode),
-                  _settingsCard([
-                    _settingsTile(
-                      icon: Icons.help_outline,
-                      title: "Help Center",
-                      onTap: () {},
-                      isDark: appState.isDarkMode,
-                    ),
-                    _settingsTile(
-                      icon: Icons.info_outline,
-                      title: "About App",
-                      onTap: () {},
-                      isDark: appState.isDarkMode,
-                    ),
-                  ], appState.isDarkMode),
-
-                  const SizedBox(height: 30),
-
-                  /// LOGOUT BUTTON
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton.icon(
-                      onPressed: () async {
-                        final router = GoRouter.of(context);
-                        await TokenManager.clearToken();
-                        router.go(AppRoutes.login);
-                      },
-                      icon: const Icon(Icons.logout, color: Colors.white),
-                      label: const Text(
-                        "Logout",
-                        style: TextStyle(color: Colors.white, fontSize: 18),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: primaryColor,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(25),
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-                ],
-              ),
+  void _showLanguageDialog(BuildContext context, AppState appState) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('language'.tr(context)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: const Text('English'),
+              trailing: appState.locale == 'en' ? const Icon(Icons.check, color: AppColors.primary) : null,
+              onTap: () {
+                appState.setLocale('en');
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              title: const Text('العربية'),
+              trailing: appState.locale == 'ar' ? const Icon(Icons.check, color: AppColors.primary) : null,
+              onTap: () {
+                appState.setLocale('ar');
+                Navigator.pop(context);
+              },
             ),
           ],
         ),
@@ -237,89 +234,27 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Widget _sectionHeader(String title, bool isDark) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 8, bottom: 8),
-      child: Text(
-        title,
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.bold,
-          color: isDark ? Colors.white70 : Colors.black54,
+  Widget _buildLogoutButton(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 56,
+      child: OutlinedButton.icon(
+        onPressed: () async {
+          final router = GoRouter.of(context);
+          final appState = context.read<AppState>();
+          await TokenManager.clearToken();
+          await appState.logout();
+          router.go(AppRoutes.login);
+        },
+        icon: const Icon(Icons.logout_rounded, color: AppColors.danger),
+        label: Text(
+          'logout'.tr(context),
+          style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.bold),
         ),
-      ),
-    );
-  }
-
-  Widget _settingsCard(List<Widget> children, bool isDark) {
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF2C2C2C) : Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        boxShadow: const [
-          BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
-        ],
-      ),
-      child: Column(children: children),
-    );
-  }
-
-  Widget _settingsTile({
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-    required bool isDark,
-  }) {
-    return ListTile(
-      leading: Container(
-        padding: const EdgeInsets.all(6),
-        decoration: BoxDecoration(
-          color: const Color(0xFFEAF2FB),
-          borderRadius: BorderRadius.circular(8),
+        style: OutlinedButton.styleFrom(
+          side: const BorderSide(color: AppColors.danger),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         ),
-        child: Icon(icon, color: const Color(0xFF2B4F7A), size: 22),
-      ),
-      title: Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: isDark ? Colors.white : Colors.black)),
-      trailing: const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
-      onTap: onTap,
-    );
-  }
-
-  Widget _switchTile({
-    required IconData icon,
-    required String title,
-    String? subtitle,
-    required bool value,
-    bool enabled = true,
-    required bool isDark,
-    required ValueChanged<bool> onChanged,
-  }) {
-    return ListTile(
-      leading: Container(
-        padding: const EdgeInsets.all(6),
-        decoration: BoxDecoration(
-          color: const Color(0xFFEAF2FB),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Icon(icon, color: enabled ? const Color(0xFF2B4F7A) : Colors.grey, size: 22),
-      ),
-      title: Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: enabled ? (isDark ? Colors.white : Colors.black) : Colors.grey)),
-      subtitle: subtitle != null ? Text(subtitle, style: TextStyle(fontSize: 12, color: isDark ? Colors.white54 : Colors.black54)) : null,
-      trailing: Switch(
-        value: value,
-        onChanged: enabled ? onChanged : null,
-        thumbColor: WidgetStateProperty.resolveWith<Color?>((Set<WidgetState> states) {
-          if (states.contains(WidgetState.selected)) {
-            return const Color(0xFF2B4F7A);
-          }
-          return null;
-        }),
-        trackColor: WidgetStateProperty.resolveWith<Color?>((Set<WidgetState> states) {
-          if (states.contains(WidgetState.selected)) {
-            return const Color(0x802B4F7A);
-          }
-          return null;
-        }),
       ),
     );
   }

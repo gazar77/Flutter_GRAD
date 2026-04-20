@@ -1,86 +1,16 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:fp/core/routing/app_routes.dart';
-import 'package:fp/core/networking/api_constants.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+
 import '../../core/app_state.dart';
-
-class _MainButton extends StatelessWidget {
-  final String text;
-  final Color color;
-  final Color textColor;
-  final VoidCallback onTap;
-
-  const _MainButton({
-    required this.text,
-    required this.color,
-    this.textColor = Colors.white,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Center(
-          child: Text(
-            text,
-            style: TextStyle(
-              color: textColor,
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Fallback widget shown when no analyzed image is available from backend
-class _VideoFallback extends StatelessWidget {
-  final File file;
-  const _VideoFallback({required this.file});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      color: const Color(0x0F2B4F7A),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.play_circle_fill, size: 52, color: Color(0xFF2B4F7A)),
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text(
-              file.path.split('/').last,
-              textAlign: TextAlign.center,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-                color: Color(0xFF2B4F7A),
-              ),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            '${(file.lengthSync() / (1024 * 1024)).toStringAsFixed(2)} MB',
-            style: const TextStyle(fontSize: 12, color: Colors.grey),
-          ),
-        ],
-      ),
-    );
-  }
-}
+import '../../core/routing/app_routes.dart';
+import '../../core/networking/api_constants.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/widgets/app_button.dart';
+import '../../core/widgets/app_card.dart';
+import '../../core/localization/app_localizations.dart';
 
 class ResultPage extends StatelessWidget {
   final File file;
@@ -90,13 +20,14 @@ class ResultPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const primaryColor = Color(0xFF2B4F7A);
-
+    final theme = Theme.of(context);
+    
     // Map backend response
     final stenosis = (result['stenosisPercentage'] ?? 0.0).toDouble();
     final artery = result['arteryName'] ?? 'Unknown Artery';
     final riskLevel = result['riskLevel'] ?? 'Normal';
-    // Build full image URL from imagePath returned by backend
+    final diagnosisDetails = result['diagnosisDetails'] ?? 'No detailed analysis provided.';
+    
     final imagePath = result['imagePath'] as String?;
     final imageUrl = (imagePath != null && imagePath.isNotEmpty)
         ? '${ApiConstants.baseUrl.replaceFirst('/api/', '/')}$imagePath'
@@ -104,187 +35,264 @@ class ResultPage extends StatelessWidget {
 
     Color riskColor;
     if (riskLevel.toUpperCase().contains('CRITICAL') || riskLevel.toUpperCase().contains('HIGH')) {
-      riskColor = Colors.red;
+      riskColor = AppColors.danger;
     } else if (riskLevel.toUpperCase().contains('MODERATE') || riskLevel.toUpperCase().contains('MEDIUM')) {
-      riskColor = Colors.orange;
+      riskColor = AppColors.warning;
     } else {
-      riskColor = Colors.green;
+      riskColor = AppColors.success;
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F4F4),
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        title: Text('analysisTitle'.tr(context)),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          onPressed: () => context.go(AppRoutes.home),
+        ),
+      ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Analysis Result',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: primaryColor,
-                ),
-              ),
-
-              const SizedBox(height: 10),
-              const Divider(),
-              const SizedBox(height: 10),
-
-              /// Analyzed image from backend
-              Container(
-                width: double.infinity,
-                height: 200,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                  boxShadow: const [
-                    BoxShadow(color: Colors.black26, blurRadius: 5),
-                  ],
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(10),
-                  child: imageUrl != null
-                      ? Image.network(
-                          imageUrl,
-                          fit: BoxFit.cover,
-                          loadingBuilder: (context, child, progress) {
-                            if (progress == null) return child;
-                            return const Center(
-                              child: CircularProgressIndicator(),
-                            );
-                          },
-                          errorBuilder: (context, error, stack) =>
-                              _VideoFallback(file: file),
-                        )
-                      : _VideoFallback(file: file),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-
-              /// Diagnosis Details
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                  boxShadow: const [
-                    BoxShadow(color: Colors.black26, blurRadius: 5),
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Diagnosis & Details',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-
-                    const SizedBox(height: 8),
-
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: riskColor.withAlpha((0.1 * 255).toInt()),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: Text(
-                            riskLevel.toUpperCase(),
-                            style: TextStyle(
-                              color: riskColor,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Icon(Icons.warning, color: riskColor, size: 16),
-                      ],
-                    ),
-
-                    const SizedBox(height: 10),
-
-                    Text('Detected Artery : $artery'),
-                    const SizedBox(height: 6),
-                    Text('Risk Level : $riskLevel'),
-
-                    const SizedBox(height: 12),
-
-                    Text('Stenosis Level : ${stenosis.toStringAsFixed(1)}%'),
-                    const SizedBox(height: 6),
-
-                    Stack(
-                      children: [
-                        Container(
-                          height: 8,
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade300,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        FractionallySizedBox(
-                          widthFactor: (stenosis / 100).clamp(0.0, 1.0),
-                          child: Container(
-                            height: 8,
-                            decoration: BoxDecoration(
-                              color: riskColor,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              const Spacer(),
-
-              Row(
-                children: [
-                  Expanded(
-                    child: _MainButton(
-                      text: 'Download Result',
-                      color: primaryColor,
-                      onTap: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Downloading report...')),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _MainButton(
-                      text: 'Analyze Another Video',
-                      color: Colors.grey.shade300,
-                      textColor: Colors.black,
-                      onTap: () {
-                        context.go(AppRoutes.upload);
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _MainButton(
-                      text: 'Back to Home',
-                      color: Colors.green,
-                      onTap: () {
-                        context.read<AppState>().triggerDashboardRefresh();
-                        context.go(AppRoutes.home);
-                      },
-                    ),
-                  ),
-                ],
-              ),
+              _buildImageContainer(imageUrl, file),
+              const SizedBox(height: 32),
+              _buildDiagnosisCard(theme, artery, riskLevel, riskColor, stenosis),
+              const SizedBox(height: 24),
+              _buildClinicalNotesCard(theme, diagnosisDetails),
+              const SizedBox(height: 40),
+              _buildActionButtons(context),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildImageContainer(String? imageUrl, File file) {
+    return Stack(
+      children: [
+        AppCard(
+          padding: EdgeInsets.zero,
+          borderRadius: 20,
+          color: Colors.black,
+          showBorder: false,
+          child: AspectRatio(
+            aspectRatio: 1 / 1, // Using 1:1 for better medical framing
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(20),
+              child: InteractiveViewer(
+                maxScale: 4.0,
+                minScale: 1.0,
+                child: imageUrl != null && imageUrl.isNotEmpty
+                    ? Image.network(
+                        imageUrl,
+                        fit: BoxFit.contain,
+                        loadingBuilder: (context, child, progress) {
+                          if (progress == null) return child;
+                          return const Center(child: CircularProgressIndicator());
+                        },
+                        errorBuilder: (context, error, stack) => _VideoFallback(file: file),
+                      )
+                    : _VideoFallback(file: file),
+              ),
+            ),
+          ),
+        ),
+        Positioned(
+          top: 12,
+          right: 12,
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(30),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.zoom_in_rounded, color: Colors.white, size: 16),
+                SizedBox(width: 4),
+                Text('Pinch to Zoom', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+        ),
+      ],
+    ).animate().fadeIn().scale(begin: const Offset(0.9, 0.9));
+  }
+
+  Widget _buildDiagnosisCard(ThemeData theme, String artery, String riskLevel, Color riskColor, double stenosis) {
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Diagnosis Summary', style: theme.textTheme.titleLarge),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: riskColor.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.circle, size: 8, color: riskColor),
+                    const SizedBox(width: 6),
+                    Text(
+                      riskLevel.toUpperCase(),
+                      style: TextStyle(color: riskColor, fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          _buildDetailRow('Artery Segment', artery, Icons.hub_rounded),
+          const Divider(height: 32),
+          _buildDetailRow('Risk Classification', riskLevel, Icons.assessment_rounded),
+          const SizedBox(height: 32),
+          Text(
+            'Stenosis Severity: ${stenosis.toStringAsFixed(1)}%',
+            style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 12),
+          Stack(
+            children: [
+              Container(
+                height: 12,
+                decoration: BoxDecoration(
+                  color: AppColors.secondary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ),
+              FractionallySizedBox(
+                widthFactor: (stenosis / 100).clamp(0.0, 1.0),
+                child: Container(
+                  height: 12,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: [riskColor.withValues(alpha: 0.6), riskColor]),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ).animate().shimmer(duration: const Duration(seconds: 2)),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.1);
+  }
+
+  Widget _buildClinicalNotesCard(ThemeData theme, String notes) {
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.notes_rounded, color: AppColors.primary, size: 20),
+              const SizedBox(width: 8),
+              Text('Clinical Evaluation', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Text(
+            notes,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: AppColors.textPrimary,
+              height: 1.5,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
+      ),
+    ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.1);
+  }
+
+  Widget _buildDetailRow(String label, String value, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: AppColors.textMuted),
+        const SizedBox(width: 12),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(label, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+            Text(value, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActionButtons(BuildContext context) {
+    return Column(
+      children: [
+        AppButton(
+          text: 'Download Clinical Report',
+          icon: Icons.file_download_rounded,
+          onPressed: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Generating PDF Report...')),
+            );
+          },
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+              child: AppButton(
+                text: 'New Analysis',
+                variant: AppButtonVariant.secondary,
+                onPressed: () => context.go(AppRoutes.upload),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: AppButton(
+                text: 'Home',
+                variant: AppButtonVariant.secondary,
+                onPressed: () {
+                  context.read<AppState>().triggerDashboardRefresh();
+                  context.go(AppRoutes.home);
+                },
+              ),
+            ),
+          ],
+        ),
+      ],
+    ).animate().fadeIn(delay: 400.ms);
+  }
+}
+
+class _VideoFallback extends StatelessWidget {
+  final File file;
+  const _VideoFallback({required this.file});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppColors.primary.withValues(alpha: 0.05),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.videocam_rounded, size: 48, color: AppColors.primary),
+          const SizedBox(height: 12),
+          Text(
+            file.path.split('/').last,
+            style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary),
+          ),
+          Text(
+            'Analyzed video frame not available',
+            style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+          ),
+        ],
       ),
     );
   }

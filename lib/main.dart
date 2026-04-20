@@ -10,9 +10,9 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
   final appState = AppState();
-  await appState.loadProfileImage();
+  await appState.loadSettings();
 
-  GoogleFonts.config.allowRuntimeFetching = false;
+  GoogleFonts.config.allowRuntimeFetching = true;
 
   runApp(
     ChangeNotifierProvider.value(
@@ -33,11 +33,9 @@ class AngioLensApp extends StatelessWidget {
           title: AppStrings.appName,
           debugShowCheckedModeBanner: false,
           theme: AppTheme.lightTheme,
-          darkTheme: ThemeData.dark(useMaterial3: true).copyWith(
-            primaryColor: const Color(0xFF2B4F7A),
-            scaffoldBackgroundColor: const Color(0xFF121212),
-          ),
+          darkTheme: AppTheme.darkTheme,
           themeMode: appState.isDarkMode ? ThemeMode.dark : ThemeMode.light,
+          locale: Locale(appState.locale),
           routerConfig: AppRouter.router,
         );
       },

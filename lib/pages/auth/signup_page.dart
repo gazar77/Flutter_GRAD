@@ -134,7 +134,7 @@ class _SignUpPageState extends State<SignUpPage> {
                     IconButton(
                       onPressed: () {
                         if (context.canPop()) {
-                          context.pop();
+                          if (context.canPop()) { context.pop(); } else { context.go('/home'); }
                         } else {
                           context.go(AppRoutes.login);
                         }

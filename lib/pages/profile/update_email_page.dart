@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/routing/app_routes.dart';
+
+import '../../core/theme/app_colors.dart';
+import '../../core/widgets/app_card.dart';
+import '../../core/widgets/app_button.dart';
+import '../../core/widgets/app_text_field.dart';
+import '../../core/localization/app_localizations.dart';
 
 class UpdateEmailPage extends StatefulWidget {
   const UpdateEmailPage({super.key});
@@ -10,61 +15,53 @@ class UpdateEmailPage extends StatefulWidget {
 }
 
 class _UpdateEmailPageState extends State<UpdateEmailPage> {
-  final emailController = TextEditingController(text: 'ahmed.mansour@gmail.com');
+  final emailController = TextEditingController();
+  bool _isLoading = false;
 
   @override
   Widget build(BuildContext context) {
-    const primaryColor = Color(0xFF2B4F7A);
-
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Update Email'),
-        backgroundColor: primaryColor,
+        title: Text('update_email'.tr(context)),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
+        ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            const Text(
-              'A verification code will be sent to your new email address.',
-              style: TextStyle(color: Colors.grey),
-            ),
-            const SizedBox(height: 20),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('New Email Address', style: TextStyle(fontWeight: FontWeight.bold)),
-                const SizedBox(height: 6),
-                TextField(
-                  controller: emailController,
-                  decoration: InputDecoration(
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    filled: true,
-                    fillColor: Colors.white,
+            AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'email_verify_desc'.tr(context),
+                    style: const TextStyle(color: AppColors.textMuted, fontSize: 13),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 30),
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Verification code sent')),
-                  );
-                  if (context.mounted) {
-                    if (context.canPop()) {
-                      context.pop();
-                    } else {
-                      context.go(AppRoutes.profile);
-                    }
-                  }
-                },
-                style: ElevatedButton.styleFrom(backgroundColor: primaryColor),
-                child: const Text('Send Verification Code'),
+                  const SizedBox(height: 24),
+                  AppTextField(
+                    label: 'new_email'.tr(context),
+                    controller: emailController,
+                    prefixIcon: Icons.email_outlined,
+                    keyboardType: TextInputType.emailAddress,
+                  ),
+                ],
               ),
+            ),
+            const SizedBox(height: 32),
+            AppButton(
+              text: 'send_code'.tr(context),
+              isLoading: _isLoading,
+              onPressed: () async {
+                setState(() => _isLoading = true);
+                await Future.delayed(const Duration(seconds: 1)); // Simulate API
+                if (!context.mounted) return;
+                setState(() => _isLoading = false);
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('code_sent'.tr(context, listen: false))));
+                if (context.canPop()) { context.pop(); } else { context.go('/home'); }
+              },
             ),
           ],
         ),

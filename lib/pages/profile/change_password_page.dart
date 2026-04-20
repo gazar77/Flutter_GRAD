@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/routing/app_routes.dart';
+
+import '../../core/widgets/app_card.dart';
+import '../../core/widgets/app_button.dart';
+import '../../core/widgets/app_text_field.dart';
+import '../../core/localization/app_localizations.dart';
 
 class ChangePasswordPage extends StatefulWidget {
   const ChangePasswordPage({super.key});
@@ -13,68 +17,64 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
   final oldPassController = TextEditingController();
   final newPassController = TextEditingController();
   final confirmPassController = TextEditingController();
+  bool _isLoading = false;
 
   @override
   Widget build(BuildContext context) {
-    const primaryColor = Color(0xFF2B4F7A);
-
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Change Password'),
-        backgroundColor: primaryColor,
+        title: Text('change_password'.tr(context)),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
+        ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            _passField('Current Password', oldPassController),
-            const SizedBox(height: 12),
-            _passField('New Password', newPassController),
-            const SizedBox(height: 12),
-            _passField('Confirm New Password', confirmPassController),
-            const SizedBox(height: 30),
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Password changed successfully')),
-                  );
-                  if (context.mounted) {
-                    if (context.canPop()) {
-                      context.pop();
-                    } else {
-                      context.go(AppRoutes.profile);
-                    }
-                  }
-                },
-                style: ElevatedButton.styleFrom(backgroundColor: primaryColor),
-                child: const Text('Change Password'),
+            AppCard(
+              child: Column(
+                children: [
+                  AppTextField(
+                    label: 'current_password'.tr(context),
+                    controller: oldPassController,
+                    isPassword: true,
+                    prefixIcon: Icons.lock_outline_rounded,
+                  ),
+                  const SizedBox(height: 20),
+                  AppTextField(
+                    label: 'new_password'.tr(context),
+                    controller: newPassController,
+                    isPassword: true,
+                    prefixIcon: Icons.lock_reset_rounded,
+                  ),
+                  const SizedBox(height: 20),
+                  AppTextField(
+                    label: 'confirm_password'.tr(context),
+                    controller: confirmPassController,
+                    isPassword: true,
+                    prefixIcon: Icons.check_circle_outline_rounded,
+                  ),
+                ],
               ),
+            ),
+            const SizedBox(height: 32),
+            AppButton(
+              text: 'change_password'.tr(context),
+              isLoading: _isLoading,
+              onPressed: () async {
+                setState(() => _isLoading = true);
+                await Future.delayed(const Duration(seconds: 1)); // Simulate API
+                if (!context.mounted) return;
+                setState(() => _isLoading = false);
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('password_changed'.tr(context, listen: false))));
+                if (context.canPop()) { context.pop(); } else { context.go('/home'); }
+              },
             ),
           ],
         ),
       ),
-    );
-  }
-
-  Widget _passField(String label, TextEditingController controller) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
-        const SizedBox(height: 6),
-        TextField(
-          controller: controller,
-          obscureText: true,
-          decoration: InputDecoration(
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            filled: true,
-            fillColor: Colors.white,
-          ),
-        ),
-      ],
     );
   }
 }

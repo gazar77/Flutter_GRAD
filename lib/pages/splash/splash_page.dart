@@ -2,7 +2,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:provider/provider.dart';
+import '../../core/app_state.dart';
+import '../../core/networking/dio_factory.dart';
+import '../../core/networking/api_constants.dart';
 import '../../core/routing/app_routes.dart';
+import '../../core/networking/token_manager.dart';
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
@@ -18,10 +23,41 @@ class _SplashPageState extends State<SplashPage> {
     _goToNextScreen();
   }
 
-  void _goToNextScreen() {
+  void _goToNextScreen() async {
+    final token = await TokenManager.getToken();
+    
+    // Fetch profile data here so the app state isn't empty!
+    if (token != null && token.isNotEmpty) {
+      try {
+        final dio = DioFactory.getDio();
+        final response = await dio.get(ApiConstants.updateProfile);
+        if (response.statusCode == 200 && mounted) {
+            final userData = response.data;
+            context.read<AppState>().updateDoctorProfile(
+              name: userData['fullName'],
+              email: userData['email'],
+              specialty: userData['title'],
+              hospital: userData['hospital'],
+              phone: userData['mobile'],
+              extension: userData['extension'],
+            );
+        }
+      } catch (e) {
+        // If profile fetch fails (e.g. token expired), we should probably route to login instead
+        if (mounted) {
+          context.go(AppRoutes.login);
+          return;
+        }
+      }
+    }
+
     Timer(const Duration(milliseconds: 3500), () {
       if (mounted) {
-        context.go(AppRoutes.login);
+        if (token != null && token.isNotEmpty) {
+          context.go(AppRoutes.home);
+        } else {
+          context.go(AppRoutes.login);
+        }
       }
     });
   }

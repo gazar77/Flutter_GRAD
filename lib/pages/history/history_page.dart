@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
-import 'package:fp/core/routing/app_routes.dart';
-import 'package:fp/core/services/patient_service.dart';
-import 'package:fp/core/services/report_service.dart';
-import 'package:fp/pages/history/models/patient_history_model.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+
+import '../../core/routing/app_routes.dart';
+import '../../core/services/patient_service.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/widgets/app_card.dart';
+import '../../core/widgets/app_shimmer.dart';
+import '../../core/localization/app_localizations.dart';
+import 'models/patient_history_model.dart';
 
 class HistoryPage extends StatefulWidget {
   const HistoryPage({super.key});
@@ -16,6 +21,7 @@ class HistoryPage extends StatefulWidget {
 class _HistoryPageState extends State<HistoryPage> {
   String _selectedFilter = 'All';
   late Future<List<PatientHistory>> _patientsFuture;
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
@@ -26,7 +32,6 @@ class _HistoryPageState extends State<HistoryPage> {
   Future<List<PatientHistory>> _fetchPatients() async {
     try {
       final rawPatients = await PatientService().getAllPatients();
-      // Use compute to process data in a background isolate to keep UI responsive
       return await compute(_processPatientData, rawPatients);
     } catch (e) {
       debugPrint('Error fetching patients: $e');
@@ -34,21 +39,18 @@ class _HistoryPageState extends State<HistoryPage> {
     }
   }
 
-  // Pure function for background processing - must be static or top-level
   static List<PatientHistory> _processPatientData(List<dynamic> rawPatients) {
     return rawPatients.map((p) {
       int latestStenosis = 0;
       String latestDate = (p['createdAt'] as String?)?.split('T')[0] ?? '';
       String? artery;
       String? riskLevel;
-      String? notes;
       String? im1;
       String? im2;
       String? studyId;
       
       if (p['studies'] != null && (p['studies'] as List).isNotEmpty) {
         final studies = p['studies'] as List;
-        // Find the latest study with an analysis result
         for (var study in studies) {
           if (study['analysisResults'] != null && (study['analysisResults'] as List).isNotEmpty) {
             final results = study['analysisResults'] as List;
@@ -73,7 +75,7 @@ class _HistoryPageState extends State<HistoryPage> {
         stenosis: latestStenosis,
         artery: artery,
         riskLevel: riskLevel,
-        notes: notes ?? "Analysis completed successfully.",
+        notes: "Analysis completed successfully.",
         image1: im1,
         image2: im2,
       );
@@ -82,97 +84,100 @@ class _HistoryPageState extends State<HistoryPage> {
 
   @override
   Widget build(BuildContext context) {
-    const primaryColor = Color(0xFF2B4F7A);
-
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F4F4),
       appBar: AppBar(
-        backgroundColor: primaryColor,
-        centerTitle: true,
+        title: Text('history'.tr(context)),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go(AppRoutes.home);
-            }
-          },
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          onPressed: () { if (context.canPop()) { context.pop(); } else { context.go('/home'); } },
         ),
-        title: const Text('Patients History'),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          children: [
-            TextField(
-              decoration: InputDecoration(
-                hintText: 'Search Patient name or ID',
-                prefixIcon: const Icon(Icons.search),
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
               children: [
-                _FilterChip(
-                  label: 'All',
-                  isSelected: _selectedFilter == 'All',
-                  onTap: () => setState(() => _selectedFilter = 'All'),
-                ),
-                _FilterChip(
-                  label: 'Normal',
-                  isSelected: _selectedFilter == 'Normal',
-                  onTap: () => setState(() => _selectedFilter = 'Normal'),
-                ),
-                _FilterChip(
-                  label: 'Moderate',
-                  isSelected: _selectedFilter == 'Moderate',
-                  onTap: () => setState(() => _selectedFilter = 'Moderate'),
-                ),
-                _FilterChip(
-                  label: 'Critical',
-                  isSelected: _selectedFilter == 'Critical',
-                  onTap: () => setState(() => _selectedFilter = 'Critical'),
-                ),
+                _buildSearchField(),
+                const SizedBox(height: 20),
+                _buildFilterSection(),
               ],
             ),
-            const SizedBox(height: 10),
-            Expanded(
-              child: FutureBuilder<List<PatientHistory>>(
-                future: _patientsFuture,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  if (snapshot.hasError) {
-                    return Center(child: Text('Error: ${snapshot.error}'));
-                  }
-                  if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                    return const Center(child: Text('No patients found'));
-                  }
+          ),
+          Expanded(
+            child: FutureBuilder<List<PatientHistory>>(
+              future: _patientsFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return _buildLoadingState();
+                }
+                if (snapshot.hasError) {
+                   return Center(child: Text('Error: ${snapshot.error}'));
+                }
+                if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                  return Center(child: Text('no_patients_found'.tr(context)));
+                }
 
-                  final filtered = _selectedFilter == 'All'
-                      ? snapshot.data!
-                      : snapshot.data!.where((p) => p.status == _selectedFilter).toList();
+                final filtered = snapshot.data!.where((p) {
+                  final matchesFilter = _selectedFilter == 'All' || p.status == _selectedFilter;
+                  final matchesSearch = p.name.toLowerCase().contains(_searchController.text.toLowerCase());
+                  return matchesFilter && matchesSearch;
+                }).toList();
 
-                  return ListView.builder(
-                    itemCount: filtered.length,
-                    itemBuilder: (context, index) {
-                      final patient = filtered[index];
-                      return _PatientCard(patient: patient);
-                    },
-                  );
-                },
-              ),
+                return ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  itemCount: filtered.length,
+                  itemBuilder: (context, index) {
+                    return _PatientCard(patient: filtered[index]).animate().fadeIn(delay: (index * 50).ms).slideX(begin: 0.1);
+                  },
+                );
+              },
             ),
-          ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchField() {
+    return AppCard(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: TextField(
+        controller: _searchController,
+        onChanged: (v) => setState(() {}),
+        decoration: InputDecoration(
+          hintText: 'search_hint'.tr(context),
+          prefixIcon: const Icon(Icons.search_rounded, color: AppColors.primary),
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
         ),
+      ),
+    );
+  }
+
+  Widget _buildFilterSection() {
+    final filters = ['All', 'Normal', 'Moderate', 'Critical'];
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
+      child: Row(
+        children: filters.map((f) => _FilterChip(
+          label: f,
+          isSelected: _selectedFilter == f,
+          onTap: () => setState(() => _selectedFilter = f),
+        )).toList(),
+      ),
+    );
+  }
+
+  Widget _buildLoadingState() {
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      itemCount: 5,
+      itemBuilder: (context, index) => const Padding(
+        padding: EdgeInsets.only(bottom: 12),
+        child: AppShimmer(width: double.infinity, height: 100, borderRadius: 16),
       ),
     );
   }
@@ -191,27 +196,21 @@ class _FilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    Color getColor() {
-      if (label == 'Normal') return Colors.green;
-      if (label == 'Moderate') return Colors.orange;
-      if (label == 'Critical') return Colors.red;
-      return Colors.blue;
-    }
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: isSelected ? getColor().withAlpha((0.2 * 255).toInt()) : Colors.white,
-          borderRadius: BorderRadius.circular(20),
+    final color = _getStatusColor(label);
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ChoiceChip(
+        label: Text(label),
+        selected: isSelected,
+        onSelected: (_) => onTap(),
+        selectedColor: color.withValues(alpha: 0.2),
+        labelStyle: TextStyle(
+          color: isSelected ? color : AppColors.textPrimary,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
         ),
-        child: Row(
-          children: [
-            Icon(Icons.circle, size: 8, color: getColor()),
-            const SizedBox(width: 4),
-            Text(label),
-          ],
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: isSelected ? color : AppColors.secondary.withValues(alpha: 0.1)),
         ),
       ),
     );
@@ -220,111 +219,64 @@ class _FilterChip extends StatelessWidget {
 
 class _PatientCard extends StatelessWidget {
   final PatientHistory patient;
-
   const _PatientCard({required this.patient});
 
   @override
   Widget build(BuildContext context) {
-    const primaryColor = Color(0xFF2B4F7A);
-    Color statusColor;
-    if (patient.status == 'Normal') {
-      statusColor = Colors.green;
-    } else if (patient.status == 'Moderate') {
-      statusColor = Colors.orange;
-    } else {
-      statusColor = Colors.red;
-    }
+    final statusColor = _getStatusColor(patient.status);
 
-    return GestureDetector(
-      onTap: () {
-        context.push(
-          AppRoutes.caseDetails,
-          extra: {
-            "name": patient.name,
-            "age": patient.age,
-            "gender": patient.gender,
-            "id": patient.id ?? "#${patient.name.hashCode}",
-            "image1": patient.image1,
-            "image2": patient.image2,
-            "stenosis": patient.stenosis,
-            "artery": patient.artery ?? "N/A",
-            "notes": patient.notes,
-            "riskLevel": patient.riskLevel,
-          },
-        );
-      },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: const [
-            BoxShadow(color: Colors.black26, blurRadius: 3),
-          ],
-        ),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: AppCard(
+        padding: const EdgeInsets.all(16),
+        onTap: () => context.push(AppRoutes.caseDetails, extra: {
+          "name": patient.name,
+          "age": patient.age,
+          "gender": patient.gender,
+          "id": patient.id ?? "#${patient.name.hashCode}",
+          "image1": patient.image1,
+          "image2": patient.image2,
+          "stenosis": patient.stenosis,
+          "artery": patient.artery ?? "N/A",
+          "notes": patient.notes,
+          "riskLevel": patient.riskLevel,
+        }),
         child: Row(
           children: [
-            const CircleAvatar(
-              radius: 25,
-              backgroundColor: Colors.grey,
-              child: Icon(Icons.person, color: Colors.white),
+            Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: statusColor.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(Icons.person_rounded, color: statusColor),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    patient.name,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text('Age: ${patient.age}'),
-                  Text('Date: ${patient.date}'),
-                  Text(
-                    'Stenosis: ${patient.stenosis}%',
-                    style: TextStyle(color: statusColor),
-                  ),
+                  Text(patient.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  const SizedBox(height: 4),
+                  Text('${patient.date} • ${patient.age} yrs', style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
                 ],
               ),
             ),
             Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                IconButton(
-                  icon: const Icon(Icons.download, color: primaryColor),
-                  onPressed: () async {
-                    final messenger = ScaffoldMessenger.of(context);
-                    messenger.showSnackBar(
-                      const SnackBar(content: Text("Generating report...")),
-                    );
-                    final path = await ReportService.generatePdfReport({
-                      "name": patient.name,
-                      "age": patient.age,
-                      "gender": patient.gender,
-                      "stenosis": patient.stenosis,
-                      "date": patient.date,
-                    });
-                    if (path != null) {
-                      messenger.showSnackBar(
-                        SnackBar(content: Text("Report saved to: $path")),
-                      );
-                    }
-                  },
-                ),
-                const SizedBox(height: 5),
+                Text('${patient.stenosis}%', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: statusColor)),
+                const SizedBox(height: 4),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: statusColor.withAlpha((0.2 * 255).toInt()),
-                    borderRadius: BorderRadius.circular(6),
+                    color: statusColor.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
-                    patient.status,
-                    style: TextStyle(
-                      color: statusColor,
-                      fontSize: 12,
-                    ),
+                    patient.status.toUpperCase(),
+                    style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold),
                   ),
                 ),
               ],
@@ -333,5 +285,14 @@ class _PatientCard extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+Color _getStatusColor(String status) {
+  switch (status.toUpperCase()) {
+    case 'CRITICAL': return AppColors.danger;
+    case 'MODERATE': return AppColors.warning;
+    case 'NORMAL': return AppColors.success;
+    default: return AppColors.primary;
   }
 }

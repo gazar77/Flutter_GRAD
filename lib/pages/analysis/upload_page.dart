@@ -1,13 +1,19 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:fp/core/networking/api_constants.dart';
-import 'package:fp/core/networking/dio_factory.dart';
-import 'package:fp/core/routing/app_routes.dart';
-import 'package:fp/core/services/patient_service.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:go_router/go_router.dart';
 import 'package:dio/dio.dart';
 import 'package:video_player/video_player.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+
+import '../../core/networking/api_constants.dart';
+import '../../core/networking/dio_factory.dart';
+import '../../core/routing/app_routes.dart';
+import '../../core/services/patient_service.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/widgets/app_card.dart';
+import '../../core/widgets/app_button.dart';
+import '../../core/localization/app_localizations.dart';
 
 class UploadPage extends StatefulWidget {
   const UploadPage({super.key});
@@ -38,19 +44,15 @@ class _UploadPageState extends State<UploadPage> {
         isLoadingPatients = false;
       });
     } catch (e) {
-      debugPrint('Error loading patients: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading patients: $e')),
-        );
-      }
+      if (mounted) setState(() => isLoadingPatients = false);
     }
   }
 
-  Future<void> _pickVideoFile() async {
+  Future<void> _pickFile(FileType type, {List<String>? allowedExtensions}) async {
     final result = await FilePicker.platform.pickFiles(
-      type: FileType.video,
+      type: type,
       allowMultiple: false,
+      allowedExtensions: allowedExtensions,
     );
     if (result != null && result.files.isNotEmpty && result.files.first.path != null) {
       if (_videoController != null) {
@@ -63,34 +65,22 @@ class _UploadPageState extends State<UploadPage> {
         selectedFileName = result.files.first.name;
       });
 
-      // Automatically try to initialize preview with a safe delay
-      Future.delayed(const Duration(milliseconds: 300), () {
-        if (mounted && selectedFile != null) {
-          _initializeVideoPreview();
-        }
-      });
+      if (type == FileType.video) {
+        _initializeVideoPreview();
+      }
     }
   }
 
   Future<void> _initializeVideoPreview() async {
     if (selectedFile == null) return;
-    
     try {
       final controller = VideoPlayerController.file(selectedFile!);
       await controller.initialize();
       controller.setLooping(true);
       controller.play();
-
-      setState(() {
-        _videoController = controller;
-      });
+      setState(() => _videoController = controller);
     } catch (e) {
-      debugPrint('Error initializing video player: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Cannot show preview for this video format on this device.')),
-        );
-      }
+      debugPrint('Video init error: $e');
     }
   }
 
@@ -98,20 +88,6 @@ class _UploadPageState extends State<UploadPage> {
   void dispose() {
     _videoController?.dispose();
     super.dispose();
-  }
-
-  Future<void> _pickDicomFile() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.any,
-      allowMultiple: false,
-      allowedExtensions: null,
-    );
-    if (result != null && result.files.isNotEmpty && result.files.first.path != null) {
-      setState(() {
-        selectedFile = File(result.files.first.path!);
-        selectedFileName = result.files.first.name;
-      });
-    }
   }
 
   Future<void> _uploadAndAnalyze() async {
@@ -122,27 +98,11 @@ class _UploadPageState extends State<UploadPage> {
       return;
     }
 
-    // Show loading immediately
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Row(
-            children: [
-              SizedBox(
-                width: 18, height: 18,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-              ),
-              SizedBox(width: 12),
-              Text('Uploading...'),
-            ],
-          ),
-          duration: Duration(seconds: 30),
-        ),
-      );
-    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Uploading and processing...'), duration: Duration(seconds: 2)),
+    );
 
     int studyId = 0;
-
     try {
       final dio = DioFactory.getDio();
       final formData = FormData.fromMap({
@@ -150,287 +110,149 @@ class _UploadPageState extends State<UploadPage> {
         'File': await MultipartFile.fromFile(selectedFile!.path),
       });
 
-      final response = await dio.post(
-        '${ApiConstants.studies}/upload',
-        data: formData,
-      );
-
+      final response = await dio.post('${ApiConstants.studies}/upload', data: formData);
       if (response.statusCode == 200) {
         studyId = response.data['id'];
-      } else {
-        throw Exception('Upload failed: ${response.statusMessage}');
       }
     } catch (e) {
       debugPrint('Upload error: $e');
-      // Still navigate to processing to show the error state there
     }
 
     if (mounted) {
-      ScaffoldMessenger.of(context).hideCurrentSnackBar();
-      context.go(AppRoutes.processing, extra: {
-        'file': selectedFile,
-        'studyId': studyId,
-      });
+      context.go(AppRoutes.processing, extra: {'file': selectedFile, 'studyId': studyId});
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    const primaryColor = Color(0xFF2B4F7A);
-
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F4F4),
       appBar: AppBar(
-        title: const Text('Upload Angiography Video'),
-        backgroundColor: primaryColor,
+        title: Text('analyze'.tr(context)),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            if (context.canPop()) {
-              context.pop();
-            } else {
-              context.go(AppRoutes.home);
-            }
-          },
+          icon: const Icon(Icons.arrow_back_ios_new_rounded),
+          onPressed: () => context.go(AppRoutes.home),
         ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Upload Patients Scan to start analysis',
-              style: TextStyle(fontSize: 13),
-            ),
-            const SizedBox(height: 12),
-            const Divider(),
-            const SizedBox(height: 12),
-
-            /// 🔹 Select Patient
-            const Text(
-              'Select Patient',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-
-            isLoadingPatients
-                ? const Center(child: CircularProgressIndicator())
-                : Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: Colors.black26),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<int>(
-                        value: selectedPatientId,
-                        hint: const Text('Select Patient'),
-                        isExpanded: true,
-                        items: patients.map((p) {
-                          return DropdownMenuItem<int>(
-                            value: p['id'],
-                            child: Text('${p['fullName']}, ${p['age']}'),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            selectedPatientId = value;
-                          });
-                        },
-                      ),
-                    ),
-                  ),
-
-            const SizedBox(height: 20),
-
-            /// 🔹 Upload Boxes
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _UploadBox(
-                  title: 'Tap to upload\nangiography video\n(MP4)',
-                  icon: Icons.video_file,
-                  onTap: _pickVideoFile,
-                ),
-                _UploadBox(
-                  title: 'Tap to upload\nangiography scan\n(DICOM)',
-                  icon: Icons.file_present,
-                  onTap: _pickDicomFile,
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 20),
-
-            /// 🔹 Preview
-            if (selectedFile != null)
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Selected File',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                  const SizedBox(height: 10),
-                  Container(
-                    width: double.infinity,
-                    height: 250,
-                    decoration: BoxDecoration(
-                      color: Colors.black,
-                      borderRadius: BorderRadius.circular(15),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withAlpha((0.3 * 255).toInt()),
-                          blurRadius: 10,
-                          offset: const Offset(0, 5),
-                        ),
-                      ],
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(15),
-                      child: Stack(
-                        children: [
-                          if (_videoController != null && _videoController!.value.isInitialized)
-                            Center(
-                              child: AspectRatio(
-                                aspectRatio: _videoController!.value.aspectRatio,
-                                child: VideoPlayer(_videoController!),
-                              ),
-                            )
-                          else if (selectedFileName != null && (selectedFileName!.toLowerCase().endsWith('.mp4') || selectedFileName!.toLowerCase().endsWith('.mov')))
-                            const Center(child: CircularProgressIndicator(color: Colors.white))
-                          else
-                            const Center(
-                              child: Icon(Icons.description, color: Colors.white, size: 64),
-                            ),
-                          
-                          // File info overlay
-                          Positioned(
-                            bottom: 0,
-                            left: 0,
-                            right: 0,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.bottomCenter,
-                                  end: Alignment.topCenter,
-                                  colors: [
-                                    Colors.black.withAlpha((0.8 * 255).toInt()),
-                                    Colors.transparent,
-                                  ],
-                                ),
-                              ),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          selectedFileName ?? 'Selected File',
-                                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        Text(
-                                          '${(selectedFile!.lengthSync() / (1024 * 1024)).toStringAsFixed(2)} MB',
-                                          style: const TextStyle(color: Colors.white70, fontSize: 12),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  IconButton(
-                                    onPressed: () {
-                                      setState(() {
-                                        selectedFile = null;
-                                        selectedFileName = null;
-                                        _videoController?.dispose();
-                                        _videoController = null;
-                                      });
-                                    },
-                                    icon: const Icon(Icons.close, color: Colors.white),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-
-            const Spacer(),
-
-            /// 🔹 Analyze Button
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: _uploadAndAnalyze,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: primaryColor,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: const Text(
-                  'Analyze Video',
-                  style: TextStyle(fontSize: 16, color: Colors.white),
-                ),
-              ),
+            Text('ready_analysis'.tr(context), style: const TextStyle(color: AppColors.textMuted)),
+            const SizedBox(height: 32),
+            _buildPatientSelector(),
+            const SizedBox(height: 32),
+            _buildUploadOptions(),
+            const SizedBox(height: 32),
+            if (selectedFile != null) _buildFilePreview(),
+            const SizedBox(height: 48),
+            AppButton(
+              text: 'analyze'.tr(context),
+              onPressed: _uploadAndAnalyze,
+              isDisabled: selectedFile == null || selectedPatientId == null,
             ),
           ],
         ),
       ),
     );
   }
-}
 
-class _UploadBox extends StatelessWidget {
-  final String title;
-  final IconData icon;
-  final VoidCallback onTap;
+  Widget _buildPatientSelector() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text('SELECT PATIENT', style: Theme.of(context).textTheme.titleSmall?.copyWith(color: AppColors.primary, fontWeight: FontWeight.bold)),
+        ),
+        AppCard(
+          child: isLoadingPatients
+              ? const Center(child: CircularProgressIndicator())
+              : DropdownButtonHideUnderline(
+                  child: DropdownButton<int>(
+                    value: selectedPatientId,
+                    hint: Text('select_patient'.tr(context)),
+                    isExpanded: true,
+                    icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                    items: patients.map((p) => DropdownMenuItem<int>(value: p['id'], child: Text('${p['fullName']}, ${p['age']}'))).toList(),
+                    onChanged: (v) => setState(() => selectedPatientId = v),
+                  ),
+                ),
+        ),
+      ],
+    );
+  }
 
-  const _UploadBox({
-    required this.title,
-    this.icon = Icons.cloud_upload,
-    required this.onTap,
-  });
+  Widget _buildUploadOptions() {
+    return Row(
+      children: [
+        Expanded(child: _buildUploadBox('MP4 Video', Icons.video_library_rounded, () => _pickFile(FileType.video))),
+        const SizedBox(width: 12),
+        Expanded(child: _buildUploadBox('Image', Icons.image_rounded, () => _pickFile(FileType.custom, allowedExtensions: ['jpg', 'jpeg', 'png', 'bmp']))),
+        const SizedBox(width: 12),
+        Expanded(child: _buildUploadBox('DICOM', Icons.album_rounded, () => _pickFile(FileType.custom, allowedExtensions: ['dcm']))),
+      ],
+    );
+  }
 
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
+
+  Widget _buildUploadBox(String title, IconData icon, VoidCallback onTap) {
+    return AppCard(
       onTap: onTap,
-      child: Container(
-        width: 150,
-        height: 120,
-        decoration: BoxDecoration(
-          color: const Color(0xFFEAF2FB),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-            color: const Color(0xFF2B4F7A),
-            style: BorderStyle.solid,
-          ),
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 30, color: const Color(0xFF2B4F7A)),
-            const SizedBox(height: 8),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 12),
-            ),
-          ],
-        ),
+      child: Column(
+        children: [
+          Icon(icon, color: Theme.of(context).colorScheme.primary, size: 32),
+          const SizedBox(height: 12),
+          Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+        ],
       ),
+    );
+  }
+
+  Widget _buildFilePreview() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 12),
+          child: Text('SELECTED FILE', style: Theme.of(context).textTheme.titleSmall?.copyWith(color: AppColors.primary, fontWeight: FontWeight.bold)),
+        ),
+        AppCard(
+          padding: EdgeInsets.zero,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Column(
+              children: [
+                if (_videoController != null && _videoController!.value.isInitialized)
+                  AspectRatio(aspectRatio: _videoController!.value.aspectRatio, child: VideoPlayer(_videoController!))
+                else if (selectedFile != null && (selectedFile!.path.toLowerCase().endsWith('.jpg') || 
+                         selectedFile!.path.toLowerCase().endsWith('.jpeg') || 
+                         selectedFile!.path.toLowerCase().endsWith('.png') || 
+                         selectedFile!.path.toLowerCase().endsWith('.bmp')))
+                  Image.file(selectedFile!, height: 200, width: double.infinity, fit: BoxFit.contain)
+                else
+                  Container(
+                    height: 160,
+                    width: double.infinity,
+                    color: AppColors.secondary.withValues(alpha: 0.05),
+                    child: const Icon(Icons.description_rounded, size: 48, color: AppColors.primary),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.check_circle_rounded, color: AppColors.success, size: 20),
+                      const SizedBox(width: 12),
+                      Expanded(child: Text(selectedFileName ?? '', style: const TextStyle(fontWeight: FontWeight.bold), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                      IconButton(onPressed: () => setState(() => selectedFile = null), icon: const Icon(Icons.close_rounded, size: 20)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ).animate().fadeIn().slideY(begin: 0.1),
+      ],
     );
   }
 }

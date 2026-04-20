@@ -28,12 +28,12 @@ class BiometricService {
   }
 
   Future<void> setBiometricsEnabled(bool enabled) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('biometrics_enabled', enabled);
+    final prefs = await SharedPreferences.getInstance(); // cspell:disable-line
+    await prefs.setBool('biometrics_enabled', enabled); // cspell:disable-line
   }
 
   Future<bool> isBiometricsEnabled() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool('biometrics_enabled') ?? false;
+    final prefs = await SharedPreferences.getInstance(); // cspell:disable-line
+    return prefs.getBool('biometrics_enabled') ?? false; // cspell:disable-line
   }
 }

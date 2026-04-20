@@ -1,11 +1,16 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:fp/core/networking/api_constants.dart';
-import 'package:fp/core/networking/dio_factory.dart';
-import 'package:fp/core/routing/app_routes.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+
 import '../../core/app_state.dart';
+import '../../core/routing/app_routes.dart';
+import '../../core/networking/api_constants.dart';
+import '../../core/networking/dio_factory.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/widgets/app_button.dart';
+import '../../core/localization/app_localizations.dart';
 
 class ProcessingPage extends StatefulWidget {
   final File file;
@@ -32,37 +37,28 @@ class _ProcessingPageState extends State<ProcessingPage> {
     try {
       final dio = DioFactory.getDio();
       
-      // We'll show fake progress while waiting for the API
+      // Fake progress stream
       final timer = Stream.periodic(const Duration(milliseconds: 100), (i) => i);
       final subscription = timer.listen((i) {
         if (mounted && progress < 0.9) {
-          setState(() {
-            progress += 0.01;
-          });
+          setState(() => progress += 0.01);
         }
       });
 
       final response = await dio.post('${ApiConstants.analysis}/${widget.studyId}');
-
       subscription.cancel();
 
       if (response.statusCode == 200) {
-        setState(() {
-          progress = 1.0;
-        });
-
+        setState(() => progress = 1.0);
         if (mounted) {
           context.read<AppState>().triggerDashboardRefresh();
           Future.delayed(const Duration(milliseconds: 500), () {
             if (mounted) {
-              context.go(
-                AppRoutes.result,
-                extra: {
-                  'file': widget.file,
-                  'studyId': widget.studyId,
-                  'result': response.data,
-                },
-              );
+              context.go(AppRoutes.result, extra: {
+                'file': widget.file,
+                'studyId': widget.studyId,
+                'result': response.data,
+              });
             }
           });
         }
@@ -70,7 +66,6 @@ class _ProcessingPageState extends State<ProcessingPage> {
         throw Exception('Analysis failed: ${response.statusMessage}');
       }
     } catch (e) {
-      debugPrint('Analysis error: $e');
       if (mounted) {
         setState(() {
           isError = true;
@@ -82,106 +77,77 @@ class _ProcessingPageState extends State<ProcessingPage> {
 
   @override
   Widget build(BuildContext context) {
-    const primaryColor = Color(0xFF2B4F7A);
-
     return Scaffold(
-      backgroundColor: const Color(0xFFF4F4F4),
       body: SafeArea(
-        child: Column(
-          children: [
-            const SizedBox(height: 30),
-            const Text(
-              'Processing Analysis',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: primaryColor,
-              ),
-            ),
-            const SizedBox(height: 60),
-            Center(
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Container(
-                    width: 210,
-                    height: 210,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0x402B4F7A),
-                          blurRadius: 25,
-                          spreadRadius: 6,
-                        ),
-                      ],
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                isError ? 'analysis_failed'.tr(context) : 'analyzing'.tr(context),
+                style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      color: isError ? AppColors.danger : AppColors.primary,
+                      fontWeight: FontWeight.bold,
                     ),
-                  ),
-                  SizedBox(
-                    width: 180,
-                    height: 180,
-                    child: CircularProgressIndicator(
-                      value: isError ? 1.0 : progress,
-                      strokeWidth: 12,
-                      backgroundColor: Colors.grey.shade300,
-                      valueColor: AlwaysStoppedAnimation(isError ? Colors.red : primaryColor),
-                    ),
-                  ),
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(isError ? Icons.error : Icons.monitor_heart, 
-                           color: isError ? Colors.red : primaryColor),
-                      const SizedBox(height: 8),
-                      Text(
-                        isError ? 'ERROR' : '${(progress * 100).toInt()}%',
-                        style: TextStyle(
-                          fontSize: 26,
-                          fontWeight: FontWeight.bold,
-                          color: isError ? Colors.red : primaryColor,
-                        ),
-                      ),
-                      Text(
-                        isError ? 'FAILED' : 'ANALYZING',
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ],
+              ).animate().fadeIn().scale(),
+              const SizedBox(height: 16),
+              Text(
+                isError ? 'error_occurred'.tr(context) : 'processing_desc'.tr(context),
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: AppColors.textMuted),
               ),
-            ),
-            const SizedBox(height: 60),
-            if (isError)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Text(
-                  errorMessage,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: Colors.red),
-                ),
-              )
-            else ...[
-              const Text(
-                'Analyzing angiography video',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 6),
-              const Text(
-                'This may take a few seconds',
-                style: TextStyle(color: Colors.black54),
-              ),
-            ],
-            if (isError)
-              Padding(
-                padding: const EdgeInsets.all(20),
-                child: ElevatedButton(
+              const SizedBox(height: 60),
+              _buildProgressCircle(),
+              const SizedBox(height: 60),
+              if (isError) ...[
+                Text(errorMessage, style: const TextStyle(color: AppColors.danger), textAlign: TextAlign.center),
+                const SizedBox(height: 24),
+                AppButton(
+                  text: 'go_back'.tr(context),
                   onPressed: () => context.go(AppRoutes.upload),
-                  child: const Text('Go Back'),
+                  variant: AppButtonVariant.outline,
                 ),
-              ),
-          ],
+              ] else ...[
+                const Text('AI is scanning every frame...', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                const Text('Optimizing diagnosis accuracy', style: TextStyle(color: AppColors.textMuted, fontSize: 13)),
+              ],
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  Widget _buildProgressCircle() {
+    final color = isError ? AppColors.danger : AppColors.primary;
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        SizedBox(
+          width: 200,
+          height: 200,
+          child: CircularProgressIndicator(
+            value: isError ? 1.0 : progress,
+            strokeWidth: 8,
+            backgroundColor: AppColors.secondary.withValues(alpha: 0.1),
+            valueColor: AlwaysStoppedAnimation(color),
+          ),
+        ),
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(isError ? Icons.error_outline_rounded : Icons.monitor_heart_rounded, size: 40, color: color),
+            const SizedBox(height: 12),
+            Text(
+              isError ? 'FAILED' : '${(progress * 100).toInt()}%',
+              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: color),
+            ),
+          ],
+        ),
+      ],
+    ).animate().fadeIn(duration: 600.ms).scale(begin: const Offset(0.8, 0.8));
   }
 }
