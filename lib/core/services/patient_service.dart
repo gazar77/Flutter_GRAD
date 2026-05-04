@@ -1,4 +1,6 @@
 import 'package:dio/dio.dart';
+
+import '../models/patient_api_model.dart';
 import '../networking/api_constants.dart';
 import '../networking/dio_factory.dart';
 
@@ -22,14 +24,15 @@ class PatientService {
           'age': age,
           'gender': gender,
           'phoneNumber': phone,
-          'medicalRecordNumber': medicalRecordNumber,
-          'chronicDiseases': chronicDiseases,
-          'notes': notes,
+          if (medicalRecordNumber != null && medicalRecordNumber.isNotEmpty)
+            'medicalRecordNumber': medicalRecordNumber,
+          if (chronicDiseases != null && chronicDiseases.isNotEmpty) 'chronicDiseases': chronicDiseases,
+          if (notes != null && notes.isNotEmpty) 'notes': notes,
         },
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        return response.data;
+        return Map<String, dynamic>.from(response.data as Map);
       } else {
         throw Exception('Failed to create patient: ${response.statusMessage}');
       }
@@ -38,12 +41,29 @@ class PatientService {
     }
   }
 
-  Future<List<dynamic>> getAllPatients() async {
+  Future<List<dynamic>> getAllPatients({int page = 1, int pageSize = 200}) async {
     try {
-      final response = await _dio.get(ApiConstants.patients);
+      final response = await _dio.get(
+        ApiConstants.patients,
+        queryParameters: {
+          'page': page,
+          'pageSize': pageSize,
+        },
+      );
       return response.data as List<dynamic>;
     } catch (e) {
       throw Exception('Error fetching patients: $e');
+    }
+  }
+
+  Future<PatientApiModel> getPatientById(int id) async {
+    try {
+      final response = await _dio.get('${ApiConstants.patients}/$id');
+      return PatientApiModel.fromJson(
+        Map<String, dynamic>.from(response.data as Map),
+      );
+    } catch (e) {
+      throw Exception('Error fetching patient: $e');
     }
   }
 

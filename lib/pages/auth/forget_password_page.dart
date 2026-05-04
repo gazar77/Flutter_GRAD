@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../core/routing/app_routes.dart';
+import '../../core/services/auth_service.dart';
 
 class ForgetPasswordPage extends StatefulWidget {
   const ForgetPasswordPage({super.key});
@@ -14,6 +16,7 @@ class _ForgetPasswordPageState extends State<ForgetPasswordPage> {
   final TextEditingController phoneController = TextEditingController();
 
   bool isEmailSelected = true;
+  bool _isSending = false;
 
   @override
   void dispose() {
@@ -22,26 +25,36 @@ class _ForgetPasswordPageState extends State<ForgetPasswordPage> {
     super.dispose();
   }
 
-  void _sendResetCode() {
-    if (isEmailSelected && emailController.text.trim().isEmpty) {
+  Future<void> _sendResetCode() async {
+    if (!isEmailSelected) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter your email address'),
-        ),
+        const SnackBar(content: Text('Password reset uses email only — please select email recovery.')),
       );
       return;
     }
 
-    if (!isEmailSelected && phoneController.text.trim().isEmpty) {
+    final email = emailController.text.trim();
+    if (email.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter your phone number'),
-        ),
+        const SnackBar(content: Text('Please enter your email address')),
       );
       return;
     }
 
-    context.go(AppRoutes.verifyCode);
+    setState(() => _isSending = true);
+    try {
+      final result = await AuthService().forgotPassword(email);
+      if (!mounted) return;
+      if (result.success) {
+        context.go(AppRoutes.verifyCode, extra: {'email': email.toLowerCase()});
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result.message)),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSending = false);
+    }
   }
 
   @override
@@ -183,7 +196,7 @@ class _ForgetPasswordPageState extends State<ForgetPasswordPage> {
                         width: 172,
                         height: 44,
                         child: ElevatedButton(
-                          onPressed: _sendResetCode,
+                          onPressed: _isSending ? null : _sendResetCode,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: primaryColor,
                             elevation: 0,
@@ -191,14 +204,20 @@ class _ForgetPasswordPageState extends State<ForgetPasswordPage> {
                               borderRadius: BorderRadius.circular(28),
                             ),
                           ),
-                          child: const Text(
-                            'Send Reset Code',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                            ),
-                          ),
+                          child: _isSending
+                              ? const SizedBox(
+                                  width: 22,
+                                  height: 22,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                )
+                              : const Text(
+                                  'Send Reset Code',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                  ),
+                                ),
                         ),
                       ),
                     ),

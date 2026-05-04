@@ -38,7 +38,7 @@ class ReportService {
       final patientName = _sanitizeText(data['name'] ?? data['patientName']);
       final age = _sanitizeText(data['age']?.toString());
       final gender = _sanitizeText(data['gender']);
-      final stenosis = _sanitizeText((data['stenosis'] ?? data['stenosisPercent'] ?? '0').toString());
+      final stenosis = _sanitizeText((data['stenosis'] ?? data['stenosisPercent'] ?? data['stenosisPercentage'] ?? '0').toString());
       final artery = _sanitizeText(data['artery']);
       final riskLevel = _sanitizeText(data['riskLevel']);
       final diagnosis = _sanitizeText(data['notes'] ?? data['diagnosisDetails'] ?? 'No details');

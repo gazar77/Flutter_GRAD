@@ -1,42 +1,80 @@
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../core/app_state.dart';
-import '../../core/routing/app_routes.dart';
+import '../../core/models/analysis_result_api_model.dart';
 import '../../core/networking/api_constants.dart';
+import '../../core/routing/app_routes.dart';
+import '../../core/services/report_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/localization/app_localizations.dart';
 
-class ResultPage extends StatelessWidget {
+class ResultPage extends StatefulWidget {
   final File file;
   final Map<String, dynamic> result;
 
   const ResultPage({super.key, required this.file, required this.result});
 
   @override
+  State<ResultPage> createState() => _ResultPageState();
+}
+
+class _ResultPageState extends State<ResultPage> {
+  bool _pdfLoading = false;
+
+  Future<void> _downloadClinicalReport() async {
+    setState(() => _pdfLoading = true);
+    final model = AnalysisResultApiModel.fromJson(widget.result);
+    final pdfData = model.toPdfReportPayload();
+    final path = await ReportService.generatePdfReport(pdfData);
+    if (!mounted) return;
+    setState(() => _pdfLoading = false);
+
+    if (path != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Report saved — tap Share to export'),
+          action: SnackBarAction(
+            label: 'SHARE',
+            onPressed: () => SharePlus.instance.share(ShareParams(files: [XFile(path)])),
+          ),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not generate PDF')),
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    
-    // Map backend response
+    final result = widget.result;
+
     final stenosis = (result['stenosisPercentage'] ?? 0.0).toDouble();
     final artery = result['arteryName'] ?? 'Unknown Artery';
     final riskLevel = result['riskLevel'] ?? 'Normal';
     final diagnosisDetails = result['diagnosisDetails'] ?? 'No detailed analysis provided.';
-    
+
     final imagePath = result['imagePath'] as String?;
     final imageUrl = (imagePath != null && imagePath.isNotEmpty)
-        ? '${ApiConstants.baseUrl.replaceFirst('/api/', '/')}$imagePath'
+        ? ApiConstants.getFullImageUrl(imagePath)
         : null;
 
     Color riskColor;
-    if (riskLevel.toUpperCase().contains('CRITICAL') || riskLevel.toUpperCase().contains('HIGH')) {
+    if (riskLevel.toString().toUpperCase().contains('CRITICAL') ||
+        riskLevel.toString().toUpperCase().contains('HIGH')) {
       riskColor = AppColors.danger;
-    } else if (riskLevel.toUpperCase().contains('MODERATE') || riskLevel.toUpperCase().contains('MEDIUM')) {
+    } else if (riskLevel.toString().toUpperCase().contains('MODERATE') ||
+        riskLevel.toString().toUpperCase().contains('MEDIUM')) {
       riskColor = AppColors.warning;
     } else {
       riskColor = AppColors.success;
@@ -57,11 +95,11 @@ class ResultPage extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildImageContainer(imageUrl, file),
+              _buildImageContainer(imageUrl, widget.file),
               const SizedBox(height: 32),
-              _buildDiagnosisCard(theme, artery, riskLevel, riskColor, stenosis),
+              _buildDiagnosisCard(theme, artery, riskLevel.toString(), riskColor, stenosis),
               const SizedBox(height: 24),
-              _buildClinicalNotesCard(theme, diagnosisDetails),
+              _buildClinicalNotesCard(theme, diagnosisDetails.toString()),
               const SizedBox(height: 40),
               _buildActionButtons(context),
             ],
@@ -80,7 +118,7 @@ class ResultPage extends StatelessWidget {
           color: Colors.black,
           showBorder: false,
           child: AspectRatio(
-            aspectRatio: 1 / 1, // Using 1:1 for better medical framing
+            aspectRatio: 1 / 1,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(20),
               child: InteractiveViewer(
@@ -237,11 +275,8 @@ class ResultPage extends StatelessWidget {
         AppButton(
           text: 'Download Clinical Report',
           icon: Icons.file_download_rounded,
-          onPressed: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Generating PDF Report...')),
-            );
-          },
+          isLoading: _pdfLoading,
+          onPressed: _downloadClinicalReport,
         ),
         const SizedBox(height: 16),
         Row(
@@ -285,10 +320,10 @@ class _VideoFallback extends StatelessWidget {
           const Icon(Icons.videocam_rounded, size: 48, color: AppColors.primary),
           const SizedBox(height: 12),
           Text(
-            file.path.split('/').last,
+            file.path.split(Platform.pathSeparator).last,
             style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary),
           ),
-          Text(
+          const Text(
             'Analyzed video frame not available',
             style: TextStyle(color: AppColors.textMuted, fontSize: 12),
           ),

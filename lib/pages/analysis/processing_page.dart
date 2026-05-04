@@ -6,8 +6,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../core/app_state.dart';
 import '../../core/routing/app_routes.dart';
-import '../../core/networking/api_constants.dart';
-import '../../core/networking/dio_factory.dart';
+import '../../core/services/study_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/localization/app_localizations.dart';
@@ -35,9 +34,12 @@ class _ProcessingPageState extends State<ProcessingPage> {
 
   Future<void> _analyzeStudy() async {
     try {
-      final dio = DioFactory.getDio();
-      
-      // Fake progress stream
+      if (widget.studyId <= 0) {
+        throw Exception('Invalid study ID — upload may have failed');
+      }
+
+      final studyService = StudyService();
+
       final timer = Stream.periodic(const Duration(milliseconds: 100), (i) => i);
       final subscription = timer.listen((i) {
         if (mounted && progress < 0.9) {
@@ -45,25 +47,21 @@ class _ProcessingPageState extends State<ProcessingPage> {
         }
       });
 
-      final response = await dio.post('${ApiConstants.analysis}/${widget.studyId}');
+      final data = await studyService.analyzeStudy(widget.studyId);
       subscription.cancel();
 
-      if (response.statusCode == 200) {
-        setState(() => progress = 1.0);
-        if (mounted) {
-          context.read<AppState>().triggerDashboardRefresh();
-          Future.delayed(const Duration(milliseconds: 500), () {
-            if (mounted) {
-              context.go(AppRoutes.result, extra: {
-                'file': widget.file,
-                'studyId': widget.studyId,
-                'result': response.data,
-              });
-            }
-          });
-        }
-      } else {
-        throw Exception('Analysis failed: ${response.statusMessage}');
+      setState(() => progress = 1.0);
+      if (mounted) {
+        context.read<AppState>().triggerDashboardRefresh();
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) {
+            context.go(AppRoutes.result, extra: {
+              'file': widget.file,
+              'studyId': widget.studyId,
+              'result': data,
+            });
+          }
+        });
       }
     } catch (e) {
       if (mounted) {

@@ -1,5 +1,7 @@
 import 'dart:io';
+
 import 'package:dio/dio.dart';
+import '../networking/api_constants.dart';
 import '../networking/dio_factory.dart';
 
 class StudyService {
@@ -10,18 +12,18 @@ class StudyService {
     required File file,
   }) async {
     try {
-      String fileName = file.path.split('/').last;
-      FormData formData = FormData.fromMap({
+      final fileName = file.path.split(Platform.pathSeparator).last;
+      final formData = FormData.fromMap({
         'PatientId': patientId,
         'File': await MultipartFile.fromFile(file.path, filename: fileName),
       });
 
       final response = await _dio.post(
-        'Doctor/Studies/upload',
+        '${ApiConstants.studies}/upload',
         data: formData,
       );
 
-      return response.data;
+      return Map<String, dynamic>.from(response.data as Map);
     } catch (e) {
       throw Exception('Upload failed: $e');
     }
@@ -29,8 +31,8 @@ class StudyService {
 
   Future<Map<String, dynamic>> analyzeStudy(int studyId) async {
     try {
-      final response = await _dio.post('Doctor/Analysis/$studyId');
-      return response.data;
+      final response = await _dio.post('${ApiConstants.analysis}/$studyId');
+      return Map<String, dynamic>.from(response.data as Map);
     } catch (e) {
       throw Exception('Analysis failed: $e');
     }
@@ -38,8 +40,8 @@ class StudyService {
 
   Future<Map<String, dynamic>> getAnalysisResult(int studyId) async {
     try {
-      final response = await _dio.get('Doctor/Analysis/$studyId');
-      return response.data;
+      final response = await _dio.get('${ApiConstants.analysis}/$studyId');
+      return Map<String, dynamic>.from(response.data as Map);
     } catch (e) {
       throw Exception('Failed to fetch result: $e');
     }

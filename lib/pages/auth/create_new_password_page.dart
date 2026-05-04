@@ -1,13 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+
 import '../../core/routing/app_routes.dart';
+import '../../core/services/auth_service.dart';
 
 class CreateNewPasswordPage extends StatefulWidget {
-  const CreateNewPasswordPage({super.key});
+  final String email;
+  final String otp;
+
+  const CreateNewPasswordPage({
+    super.key,
+    required this.email,
+    required this.otp,
+  });
 
   @override
-  State<CreateNewPasswordPage> createState() =>
-      _CreateNewPasswordPageState();
+  State<CreateNewPasswordPage> createState() => _CreateNewPasswordPageState();
 }
 
 class _CreateNewPasswordPageState extends State<CreateNewPasswordPage> {
@@ -21,6 +29,7 @@ class _CreateNewPasswordPageState extends State<CreateNewPasswordPage> {
   bool hasSpecial = false;
 
   String strength = "Weak";
+  bool _isSubmitting = false;
 
   void checkPassword(String value) {
     setState(() {
@@ -38,10 +47,53 @@ class _CreateNewPasswordPageState extends State<CreateNewPasswordPage> {
     });
   }
 
-  Color getStrengthColor() {
-    if (strength == "Strong") return Colors.green;
-    if (strength == "Medium") return Colors.orange;
-    return Colors.red;
+  Future<void> _resetPassword() async {
+    final email = widget.email.trim();
+    final otp = widget.otp.trim();
+    if (email.isEmpty || otp.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Session expired — start again from Forgot Password')),
+      );
+      context.go(AppRoutes.forgetPassword);
+      return;
+    }
+
+    if (!hasMinLength) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Password must be at least 8 characters')),
+      );
+      return;
+    }
+
+    if (passwordController.text != confirmController.text) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Passwords do not match')),
+      );
+      return;
+    }
+
+    setState(() => _isSubmitting = true);
+    final result = await AuthService().resetPassword(
+      email: email,
+      otp: otp,
+      newPassword: passwordController.text,
+    );
+    if (!mounted) return;
+    setState(() => _isSubmitting = false);
+
+    if (result.success) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result.message)));
+      context.go(AppRoutes.login);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result.message)));
+    }
+  }
+
+  @override
+  void dispose() {
+    passwordController.dispose();
+    confirmController.dispose();
+    super.dispose();
   }
 
   @override
@@ -54,7 +106,6 @@ class _CreateNewPasswordPageState extends State<CreateNewPasswordPage> {
         child: SingleChildScrollView(
           child: Column(
             children: [
-              /// Header
               Container(
                 width: double.infinity,
                 color: const Color(0xFFDCE7F2),
@@ -65,9 +116,9 @@ class _CreateNewPasswordPageState extends State<CreateNewPasswordPage> {
                     IconButton(
                       onPressed: () {
                         if (context.canPop()) {
-                          if (context.canPop()) { context.pop(); } else { context.go('/home'); }
+                          context.pop();
                         } else {
-                          context.go(AppRoutes.login);
+                          context.go(AppRoutes.verifyCode, extra: {'email': widget.email});
                         }
                       },
                       icon: const Icon(Icons.arrow_back),
@@ -88,12 +139,10 @@ class _CreateNewPasswordPageState extends State<CreateNewPasswordPage> {
                   ],
                 ),
               ),
-
               Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   children: [
-                    /// Password field
                     TextField(
                       controller: passwordController,
                       obscureText: isObscure,
@@ -103,9 +152,7 @@ class _CreateNewPasswordPageState extends State<CreateNewPasswordPage> {
                         prefixIcon: const Icon(Icons.lock),
                         suffixIcon: IconButton(
                           icon: Icon(
-                            isObscure
-                                ? Icons.visibility_off
-                                : Icons.visibility,
+                            isObscure ? Icons.visibility_off : Icons.visibility,
                           ),
                           onPressed: () {
                             setState(() {
@@ -121,44 +168,31 @@ class _CreateNewPasswordPageState extends State<CreateNewPasswordPage> {
                         ),
                       ),
                     ),
-
                     const SizedBox(height: 15),
-
-                    /// Strength bar
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         _StrengthBar(
                             color: Colors.red,
-                            active: strength == "Weak" ||
-                                strength == "Medium" ||
-                                strength == "Strong"),
+                            active: strength == "Weak" || strength == "Medium" || strength == "Strong"),
                         _StrengthBar(
                             color: Colors.orange,
-                            active: strength == "Medium" ||
-                                strength == "Strong"),
+                            active: strength == "Medium" || strength == "Strong"),
                         _StrengthBar(
                             color: Colors.green,
                             active: strength == "Strong"),
                       ],
                     ),
-
                     const SizedBox(height: 5),
-
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: const [
                         Text("Weak", style: TextStyle(color: Colors.red)),
-                        Text("Medium",
-                            style: TextStyle(color: Colors.orange)),
-                        Text("Strong",
-                            style: TextStyle(color: Colors.green)),
+                        Text("Medium", style: TextStyle(color: Colors.orange)),
+                        Text("Strong", style: TextStyle(color: Colors.green)),
                       ],
                     ),
-
                     const SizedBox(height: 15),
-
-                    /// Conditions
                     _ConditionItem(
                       text: "At least 8 characters",
                       valid: hasMinLength,
@@ -171,10 +205,7 @@ class _CreateNewPasswordPageState extends State<CreateNewPasswordPage> {
                       text: "Include special characters",
                       valid: hasSpecial,
                     ),
-
                     const SizedBox(height: 20),
-
-                    /// Confirm password
                     TextField(
                       controller: confirmController,
                       obscureText: true,
@@ -189,33 +220,31 @@ class _CreateNewPasswordPageState extends State<CreateNewPasswordPage> {
                         ),
                       ),
                     ),
-
                     const SizedBox(height: 30),
-
-                    /// Button
                     SizedBox(
                       width: double.infinity,
                       height: 55,
                       child: ElevatedButton(
-                        onPressed: () {
-                          // next step
-                        },
+                        onPressed: _isSubmitting ? null : _resetPassword,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: primaryColor,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(30),
                           ),
                         ),
-                        child: const Text(
-                          "Reset Password",
-                          style: TextStyle(fontSize: 18),
-                        ),
+                        child: _isSubmitting
+                            ? const SizedBox(
+                                height: 24,
+                                width: 24,
+                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                              )
+                            : const Text(
+                                "Reset Password",
+                                style: TextStyle(fontSize: 18),
+                              ),
                       ),
                     ),
-
                     const SizedBox(height: 20),
-
-                    /// Info box
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(

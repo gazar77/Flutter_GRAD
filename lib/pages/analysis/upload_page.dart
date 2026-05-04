@@ -2,14 +2,12 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:go_router/go_router.dart';
-import 'package:dio/dio.dart';
 import 'package:video_player/video_player.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
-import '../../core/networking/api_constants.dart';
-import '../../core/networking/dio_factory.dart';
 import '../../core/routing/app_routes.dart';
 import '../../core/services/patient_service.dart';
+import '../../core/services/study_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_button.dart';
@@ -104,18 +102,28 @@ class _UploadPageState extends State<UploadPage> {
 
     int studyId = 0;
     try {
-      final dio = DioFactory.getDio();
-      final formData = FormData.fromMap({
-        'PatientId': selectedPatientId,
-        'File': await MultipartFile.fromFile(selectedFile!.path),
-      });
-
-      final response = await dio.post('${ApiConstants.studies}/upload', data: formData);
-      if (response.statusCode == 200) {
-        studyId = response.data['id'];
+      final studyService = StudyService();
+      final data = await studyService.uploadStudy(
+        patientId: selectedPatientId!,
+        file: selectedFile!,
+      );
+      final rawId = data['id'];
+      if (rawId is int) {
+        studyId = rawId;
+      } else if (rawId != null) {
+        studyId = int.tryParse(rawId.toString()) ?? 0;
       }
     } catch (e) {
       debugPrint('Upload error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Upload failed: $e')),
+        );
+      }
+    }
+
+    if (studyId <= 0) {
+      return;
     }
 
     if (mounted) {

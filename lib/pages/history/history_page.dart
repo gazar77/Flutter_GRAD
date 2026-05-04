@@ -5,6 +5,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 import '../../core/routing/app_routes.dart';
 import '../../core/services/patient_service.dart';
+import '../../core/networking/api_constants.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_shimmer.dart';
@@ -234,8 +235,8 @@ class _PatientCard extends StatelessWidget {
           "age": patient.age,
           "gender": patient.gender,
           "id": patient.id ?? "#${patient.name.hashCode}",
-          "image1": patient.image1,
-          "image2": patient.image2,
+          "image1": ApiConstants.getFullImageUrl(patient.image1),
+          "image2": ApiConstants.getFullImageUrl(patient.image2),
           "stenosis": patient.stenosis,
           "artery": patient.artery ?? "N/A",
           "notes": patient.notes,

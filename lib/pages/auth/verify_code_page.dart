@@ -2,23 +2,30 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:fp/core/routing/app_routes.dart';
+import 'package:fp/core/services/auth_service.dart';
 
+/// Backend sends a **6-digit** OTP (see HeartCathAPI AuthService.SendOtpAsync).
 class VerifyCodePage extends StatefulWidget {
-  const VerifyCodePage({super.key});
+  /// Email carried from [ForgetPasswordPage] via router `extra`.
+  final String email;
+
+  const VerifyCodePage({super.key, required this.email});
 
   @override
   State<VerifyCodePage> createState() => _VerifyCodePageState();
 }
 
 class _VerifyCodePageState extends State<VerifyCodePage> {
-  final List<TextEditingController> controllers =
-      List.generate(4, (_) => TextEditingController());
+  static const int _digits = 6;
 
-  final List<FocusNode> focusNodes =
-      List.generate(4, (_) => FocusNode());
+  late final List<TextEditingController> _controllers =
+      List.generate(_digits, (_) => TextEditingController());
+  late final List<FocusNode> _focusNodes = List.generate(_digits, (_) => FocusNode());
 
   int seconds = 60;
   Timer? timer;
+  bool _verifying = false;
+  bool _resending = false;
 
   @override
   void initState() {
@@ -32,48 +39,83 @@ class _VerifyCodePageState extends State<VerifyCodePage> {
       if (seconds == 0) {
         t.cancel();
       } else {
-        setState(() {
-          seconds--;
-        });
+        if (mounted) {
+          setState(() {
+            seconds--;
+          });
+        }
       }
     });
   }
 
-  void _verifyCode() {
-    final code = controllers.map((e) => e.text.trim()).join();
+  String get _code => _controllers.map((e) => e.text.trim()).join();
 
-    debugPrint('OTP Code: $code');
-
-    if (code.length != 4) {
+  Future<void> _verifyCode() async {
+    final email = widget.email.trim();
+    if (email.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter the 4-digit code'),
-        ),
+        const SnackBar(content: Text('Missing email — go back and request a reset code.')),
       );
       return;
     }
 
-    context.go(AppRoutes.createNewPassword);
+    final code = _code;
+    if (code.length != _digits) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Please enter all $_digits digits')),
+      );
+      return;
+    }
+
+    setState(() => _verifying = true);
+    final result = await AuthService().verifyOtp(email, code);
+    if (!mounted) return;
+    setState(() => _verifying = false);
+
+    if (result.success) {
+      context.go(AppRoutes.createNewPassword, extra: {'email': email.toLowerCase(), 'otp': code});
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result.message)));
+    }
   }
 
-  void _resendCode() {
+  Future<void> _resendCode() async {
+    final email = widget.email.trim();
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Go back and enter your email.')),
+      );
+      return;
+    }
+
+    setState(() => _resending = true);
+    final result = await AuthService().forgotPassword(email);
+    if (!mounted) return;
+    setState(() => _resending = false);
+
+    if (!result.success) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result.message)));
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result.message)));
     setState(() {
       seconds = 60;
-      for (final c in controllers) {
+      for (final c in _controllers) {
         c.clear();
       }
     });
     startTimer();
-    FocusScope.of(context).requestFocus(focusNodes[0]);
+    FocusScope.of(context).requestFocus(_focusNodes[0]);
   }
 
   @override
   void dispose() {
     timer?.cancel();
-    for (final c in controllers) {
+    for (final c in _controllers) {
       c.dispose();
     }
-    for (final f in focusNodes) {
+    for (final f in _focusNodes) {
       f.dispose();
     }
     super.dispose();
@@ -102,9 +144,9 @@ class _VerifyCodePageState extends State<VerifyCodePage> {
                         IconButton(
                           onPressed: () {
                             if (context.canPop()) {
-                              if (context.canPop()) { context.pop(); } else { context.go('/home'); }
+                              context.pop();
                             } else {
-                              context.go(AppRoutes.login);
+                              context.go(AppRoutes.forgetPassword);
                             }
                           },
                           icon: const Icon(Icons.arrow_back),
@@ -124,11 +166,13 @@ class _VerifyCodePageState extends State<VerifyCodePage> {
                       ),
                     ),
                     const SizedBox(height: 6),
-                    const Align(
+                    Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        'Enter the 4-digit verification code sent to your email or phone',
-                        style: TextStyle(
+                        widget.email.isNotEmpty
+                            ? 'Enter the 6-digit code sent to\n${widget.email}'
+                            : 'Enter the 6-digit code sent to your email',
+                        style: const TextStyle(
                           fontSize: 14,
                           color: Colors.black87,
                         ),
@@ -137,17 +181,15 @@ class _VerifyCodePageState extends State<VerifyCodePage> {
                     const SizedBox(height: 30),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: List.generate(4, (index) {
+                      children: List.generate(_digits, (index) {
                         return _OtpBox(
-                          controller: controllers[index],
-                          focusNode: focusNodes[index],
+                          controller: _controllers[index],
+                          focusNode: _focusNodes[index],
                           onChanged: (value) {
-                            if (value.isNotEmpty && index < 3) {
-                              FocusScope.of(context)
-                                  .requestFocus(focusNodes[index + 1]);
+                            if (value.isNotEmpty && index < _digits - 1) {
+                              FocusScope.of(context).requestFocus(_focusNodes[index + 1]);
                             } else if (value.isEmpty && index > 0) {
-                              FocusScope.of(context)
-                                  .requestFocus(focusNodes[index - 1]);
+                              FocusScope.of(context).requestFocus(_focusNodes[index - 1]);
                             }
                           },
                         );
@@ -155,22 +197,19 @@ class _VerifyCodePageState extends State<VerifyCodePage> {
                     ),
                     const SizedBox(height: 20),
                     Text(
-                      seconds > 0
-                          ? 'Code expires in $seconds seconds'
-                          : 'Code expired',
+                      seconds > 0 ? 'Code expires in $seconds seconds' : 'Code expired',
                       style: const TextStyle(color: Colors.black54),
                     ),
                     const SizedBox(height: 20),
                     GestureDetector(
-                      onTap: seconds == 0 ? _resendCode : null,
+                      onTap: (seconds == 0 && !_resending) ? _resendCode : null,
                       child: Text(
-                        'Resend Code',
+                        _resending ? 'Sending…' : 'Resend Code',
                         style: TextStyle(
                           color: primaryColor,
                           fontWeight: FontWeight.bold,
                           fontSize: 16,
-                          decoration:
-                              seconds == 0 ? TextDecoration.underline : null,
+                          decoration: seconds == 0 ? TextDecoration.underline : null,
                         ),
                       ),
                     ),
@@ -180,7 +219,7 @@ class _VerifyCodePageState extends State<VerifyCodePage> {
                         context.go(AppRoutes.forgetPassword);
                       },
                       child: const Text(
-                        'Change Email or Phone',
+                        'Change Email',
                         style: TextStyle(fontWeight: FontWeight.w600),
                       ),
                     ),
@@ -189,20 +228,26 @@ class _VerifyCodePageState extends State<VerifyCodePage> {
                       width: double.infinity,
                       height: 55,
                       child: ElevatedButton(
-                        onPressed: _verifyCode,
+                        onPressed: _verifying ? null : _verifyCode,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: primaryColor,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(30),
                           ),
                         ),
-                        child: const Text(
-                          'Verify Code',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Colors.white,
-                          ),
-                        ),
+                        child: _verifying
+                            ? const SizedBox(
+                                height: 24,
+                                width: 24,
+                                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                              )
+                            : const Text(
+                                'Verify Code',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  color: Colors.white,
+                                ),
+                              ),
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -253,34 +298,41 @@ class _OtpBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 65,
-      height: 65,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: const Color(0xFF2B4F7A),
-          width: 1,
-        ),
-        boxShadow: const [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 4,
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        child: AspectRatio(
+          aspectRatio: 1,
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: const Color(0xFF2B4F7A),
+                width: 1,
+              ),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.black12,
+                  blurRadius: 4,
+                ),
+              ],
+            ),
+            child: TextField(
+              controller: controller,
+              focusNode: focusNode,
+              onChanged: onChanged,
+              textAlign: TextAlign.center,
+              keyboardType: TextInputType.number,
+              maxLength: 1,
+              style: const TextStyle(fontSize: 22),
+              decoration: const InputDecoration(
+                counterText: '',
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.only(bottom: 8),
+              ),
+            ),
           ),
-        ],
-      ),
-      child: TextField(
-        controller: controller,
-        focusNode: focusNode,
-        onChanged: onChanged,
-        textAlign: TextAlign.center,
-        keyboardType: TextInputType.number,
-        maxLength: 1,
-        style: const TextStyle(fontSize: 22),
-        decoration: const InputDecoration(
-          counterText: '',
-          border: InputBorder.none,
         ),
       ),
     );

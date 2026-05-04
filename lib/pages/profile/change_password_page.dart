@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/services/auth_service.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_button.dart';
 import '../../core/widgets/app_text_field.dart';
@@ -18,6 +19,46 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
   final newPassController = TextEditingController();
   final confirmPassController = TextEditingController();
   bool _isLoading = false;
+
+  @override
+  void dispose() {
+    oldPassController.dispose();
+    newPassController.dispose();
+    confirmPassController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (newPassController.text.length < 8) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('New password must be at least 8 characters')),
+      );
+      return;
+    }
+    if (newPassController.text != confirmPassController.text) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Passwords do not match')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    final result = await AuthService().changePassword(
+      oldPassword: oldPassController.text,
+      newPassword: newPassController.text,
+    );
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result.message)));
+    if (result.success && context.mounted) {
+      if (context.canPop()) {
+        context.pop();
+      } else {
+        context.go('/home');
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -63,14 +104,7 @@ class _ChangePasswordPageState extends State<ChangePasswordPage> {
             AppButton(
               text: 'change_password'.tr(context),
               isLoading: _isLoading,
-              onPressed: () async {
-                setState(() => _isLoading = true);
-                await Future.delayed(const Duration(seconds: 1)); // Simulate API
-                if (!context.mounted) return;
-                setState(() => _isLoading = false);
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('password_changed'.tr(context, listen: false))));
-                if (context.canPop()) { context.pop(); } else { context.go('/home'); }
-              },
+              onPressed: _submit,
             ),
           ],
         ),

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
+import '../../core/app_state.dart';
+import '../../core/services/auth_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_card.dart';
 import '../../core/widgets/app_button.dart';
@@ -17,6 +20,37 @@ class UpdateEmailPage extends StatefulWidget {
 class _UpdateEmailPageState extends State<UpdateEmailPage> {
   final emailController = TextEditingController();
   bool _isLoading = false;
+
+  @override
+  void dispose() {
+    emailController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final email = emailController.text.trim();
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid email')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    final result = await AuthService().updateEmail(email);
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result.message)));
+    if (result.success && context.mounted) {
+      context.read<AppState>().updateDoctorProfile(email: email);
+      if (context.canPop()) {
+        context.pop();
+      } else {
+        context.go('/home');
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -52,16 +86,9 @@ class _UpdateEmailPageState extends State<UpdateEmailPage> {
             ),
             const SizedBox(height: 32),
             AppButton(
-              text: 'send_code'.tr(context),
+              text: 'save_changes'.tr(context),
               isLoading: _isLoading,
-              onPressed: () async {
-                setState(() => _isLoading = true);
-                await Future.delayed(const Duration(seconds: 1)); // Simulate API
-                if (!context.mounted) return;
-                setState(() => _isLoading = false);
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('code_sent'.tr(context, listen: false))));
-                if (context.canPop()) { context.pop(); } else { context.go('/home'); }
-              },
+              onPressed: _submit,
             ),
           ],
         ),

@@ -22,6 +22,7 @@ import 'package:fp/pages/profile/settings_page.dart';
 import 'package:fp/pages/auth/login_page.dart';
 import 'package:fp/pages/splash/splash_page.dart';
 import 'package:fp/pages/tools/dicom_converter_page.dart';
+import 'package:fp/pages/onboarding/onboarding_page.dart';
 import 'app_routes.dart';
 
 class AppRouter {
@@ -33,6 +34,10 @@ class AppRouter {
         builder: (context, state) => const SplashPage(),
       ),
 
+      GoRoute(
+        path: AppRoutes.onboarding,
+        builder: (context, state) => const OnboardingPage(),
+      ),
 
       GoRoute(
         path: AppRoutes.login,
@@ -51,12 +56,28 @@ class AppRouter {
 
       GoRoute(
         path: AppRoutes.verifyCode,
-        builder: (context, state) => const VerifyCodePage(),
+        builder: (context, state) {
+          final extra = state.extra;
+          final email =
+              extra is Map && extra['email'] is String ? extra['email'] as String : '';
+          return VerifyCodePage(email: email);
+        },
       ),
 
       GoRoute(
         path: AppRoutes.createNewPassword,
-        builder: (context, state) => const CreateNewPasswordPage(),
+        builder: (context, state) {
+          final extra = state.extra;
+          var email = '';
+          var otp = '';
+          if (extra is Map) {
+            final e = extra['email'];
+            final o = extra['otp'];
+            if (e is String) email = e;
+            if (o is String) otp = o;
+          }
+          return CreateNewPasswordPage(email: email, otp: otp);
+        },
       ),
 
       GoRoute(

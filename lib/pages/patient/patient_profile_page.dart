@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:fp/core/routing/app_routes.dart';
 import 'package:fp/core/services/patient_service.dart';
+import 'package:fp/core/networking/api_constants.dart';
 import '../../core/app_state.dart';
 import 'package:provider/provider.dart';
 
@@ -137,8 +138,12 @@ class PatientProfilePage extends StatelessWidget {
                               "age": patient['age'],
                               "gender": patient['gender'],
                               "id": "#${patient['id']}",
-                              "image1": latestResult['imagePath'] ?? "https://via.placeholder.com/150",
-                              "image2": "https://via.placeholder.com/150",
+                              "image1": ApiConstants.getFullImageUrl(
+                                (latestResult['imagePath'] ?? '') as String?,
+                              ),
+                              "image2": ApiConstants.getFullImageUrl(
+                                (study['filePath'] ?? '') as String?,
+                              ),
                               "stenosis": latestResult['stenosisPercentage'],
                               "artery": latestResult['arteryName'] ?? "LAD",
                               "notes": "Diagnosis from patient history.",
