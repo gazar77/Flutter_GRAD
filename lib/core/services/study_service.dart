@@ -33,6 +33,9 @@ class StudyService {
     try {
       final response = await _dio.post('${ApiConstants.analysis}/$studyId');
       return Map<String, dynamic>.from(response.data as Map);
+    } on DioException catch (e) {
+      final serverMsg = e.response?.data?.toString() ?? e.message ?? 'Unknown error';
+      throw Exception(serverMsg);
     } catch (e) {
       throw Exception('Analysis failed: $e');
     }
