@@ -18,7 +18,7 @@ class ApiConstants {
   static const String analysis = 'Doctor/Analysis';
   static const String dicomToVideo = 'Tools/Tools/dicom-to-video';
   /// Local/dev AI only; live analysis goes through backend `Doctor/Analysis`.
-  static const String predictLocal = 'http://10.0.2.2:8000/predict';
+  static const String predictLocal = 'https://huggingface.co/spaces/MoGazar/angio-ai-service';
   static const String updateProfile = 'Doctor/Doctors/me';
 
   /// Builds absolute URL for static files (`/profiles/...`, `uploads/...`, `analysis/...`).
