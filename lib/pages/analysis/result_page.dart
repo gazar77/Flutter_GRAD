@@ -28,6 +28,7 @@ class ResultPage extends StatefulWidget {
 
 class _ResultPageState extends State<ResultPage> {
   bool _pdfLoading = false;
+  int _currentImageIndex = 0;
 
   Future<void> _downloadClinicalReport() async {
     setState(() => _pdfLoading = true);
@@ -64,10 +65,15 @@ class _ResultPageState extends State<ResultPage> {
     final riskLevel = result['riskLevel'] ?? 'Normal';
     final diagnosisDetails = result['diagnosisDetails'] ?? 'No detailed analysis provided.';
 
-    final imagePath = result['imagePath'] as String?;
-    final imageUrl = (imagePath != null && imagePath.isNotEmpty)
-        ? ApiConstants.getFullImageUrl(imagePath)
-        : null;
+    final imagePathStr = result['imagePath'] as String?;
+    final imagePaths = (imagePathStr != null && imagePathStr.isNotEmpty)
+        ? imagePathStr.split(',')
+        : <String>[];
+    
+    final imageUrls = imagePaths
+        .where((p) => p.trim().isNotEmpty)
+        .map((p) => ApiConstants.getFullImageUrl(p.trim()))
+        .toList();
 
     Color riskColor;
     if (riskLevel.toString().toUpperCase().contains('CRITICAL') ||
@@ -95,7 +101,7 @@ class _ResultPageState extends State<ResultPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildImageContainer(imageUrl, widget.file),
+              _buildImageContainer(imageUrls, widget.file),
               const SizedBox(height: 32),
               _buildDiagnosisCard(theme, artery, riskLevel.toString(), riskColor, stenosis),
               const SizedBox(height: 24),
@@ -109,57 +115,132 @@ class _ResultPageState extends State<ResultPage> {
     );
   }
 
-  Widget _buildImageContainer(String? imageUrl, File file) {
-    return Stack(
-      children: [
-        AppCard(
-          padding: EdgeInsets.zero,
-          borderRadius: 20,
-          color: Colors.black,
-          showBorder: false,
-          child: AspectRatio(
-            aspectRatio: 1 / 1,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: InteractiveViewer(
-                maxScale: 4.0,
-                minScale: 1.0,
-                child: imageUrl != null && imageUrl.isNotEmpty
-                    ? Image.network(
-                        imageUrl,
-                        fit: BoxFit.contain,
-                        loadingBuilder: (context, child, progress) {
-                          if (progress == null) return child;
-                          return const Center(child: CircularProgressIndicator());
-                        },
-                        errorBuilder: (context, error, stack) => _VideoFallback(file: file),
-                      )
-                    : _VideoFallback(file: file),
+  Widget _buildImageContainer(List<String> imageUrls, File file) {
+    if (imageUrls.isEmpty) {
+      return Stack(
+        children: [
+          AppCard(
+            padding: EdgeInsets.zero,
+            borderRadius: 20,
+            color: Colors.black,
+            showBorder: false,
+            child: AspectRatio(
+              aspectRatio: 1 / 1,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: InteractiveViewer(
+                  maxScale: 4.0,
+                  minScale: 1.0,
+                  child: _VideoFallback(file: file),
+                ),
               ),
             ),
           ),
-        ),
-        Positioned(
-          top: 12,
-          right: 12,
-          child: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(30),
+        ],
+      ).animate().fadeIn().scale(begin: const Offset(0.9, 0.9));
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Stack(
+          children: [
+            AppCard(
+              padding: EdgeInsets.zero,
+              borderRadius: 20,
+              color: Colors.black,
+              showBorder: false,
+              child: AspectRatio(
+                aspectRatio: 1 / 1,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: PageView.builder(
+                    itemCount: imageUrls.length,
+                    onPageChanged: (index) {
+                      setState(() {
+                        _currentImageIndex = index;
+                      });
+                    },
+                    itemBuilder: (context, index) {
+                      return InteractiveViewer(
+                        maxScale: 4.0,
+                        minScale: 1.0,
+                        child: Image.network(
+                          imageUrls[index],
+                          fit: BoxFit.contain,
+                          loadingBuilder: (context, child, progress) {
+                            if (progress == null) return child;
+                            return const Center(child: CircularProgressIndicator());
+                          },
+                          errorBuilder: (context, error, stack) => _VideoFallback(file: file),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
             ),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.zoom_in_rounded, color: Colors.white, size: 16),
-                SizedBox(width: 4),
-                Text('Pinch to Zoom', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
-              ],
+            Positioned(
+              top: 12,
+              right: 12,
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(30),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.zoom_in_rounded, color: Colors.white, size: 16),
+                    SizedBox(width: 4),
+                    Text('Pinch to Zoom', style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
             ),
+            if (imageUrls.length > 1)
+              Positioned(
+                top: 12,
+                left: 12,
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(30),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.layers_rounded, color: Colors.white, size: 16),
+                      const SizedBox(width: 4),
+                      Text('${_currentImageIndex + 1} / ${imageUrls.length}', style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ).animate().fadeIn().scale(begin: const Offset(0.9, 0.9)),
+        if (imageUrls.length > 1) ...[
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(imageUrls.length, (index) {
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                width: _currentImageIndex == index ? 24 : 8,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: _currentImageIndex == index ? AppColors.primary : Colors.grey.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              );
+            }),
           ),
-        ),
+        ],
       ],
-    ).animate().fadeIn().scale(begin: const Offset(0.9, 0.9));
+    );
   }
 
   Widget _buildDiagnosisCard(ThemeData theme, String artery, String riskLevel, Color riskColor, double stenosis) {

@@ -9,7 +9,7 @@ class DioFactory {
   static Dio? _dio;
 
   static Dio getDio() {
-    Duration timeOut = const Duration(seconds: 30);
+    Duration timeOut = const Duration(seconds: 120); // Increased timeout for large file uploads
 
     if (_dio == null) {
       _dio = Dio();
